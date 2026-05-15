@@ -1,4 +1,7 @@
 import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+os.environ["SM_FRAMEWORK"] = "tf.keras"
+
 import argparse
 import numpy as np
 import tensorflow as tf
@@ -11,8 +14,6 @@ from src.dataset import prepare_dataset
 from src.utils import get_masked_loss, calculate_class_weights, plot_history, visualize_prediction
 
 def main(args):
-    # Set environment for segmentation models
-    os.environ["SM_FRAMEWORK"] = "tf.keras"
     
     # Configure GPU memory growth
     gpus = tf.config.list_physical_devices('GPU')
