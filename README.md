@@ -61,5 +61,4 @@ Example:
 `Semantic segmentation dataset/Tile 1/masks/image_part_001.png`
 
 ## Acknowledgments
-- Based on original work in `semantic-segmentattion-unet.ipynb`.
 - Uses `segmentation-models` and `patchify` libraries.
