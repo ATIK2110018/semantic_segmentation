@@ -2,6 +2,11 @@ import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 
+# Keras 3 compatibility patch for segmentation_models
+import keras
+if not hasattr(keras.utils, 'generic_utils'):
+    keras.utils.generic_utils = keras.utils if hasattr(keras.utils, 'get_custom_objects') else keras.saving
+
 import argparse
 import numpy as np
 import tensorflow as tf
