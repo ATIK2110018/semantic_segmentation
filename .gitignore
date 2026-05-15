@@ -1,0 +1,5 @@
+Semantic segmentation dataset/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+model.keras
