@@ -63,8 +63,8 @@ def plot_history(history, save_path='training_history.png'):
     plt.savefig(save_path)
     plt.show()
 
-def visualize_prediction(model, x_test, y_test, num_samples=4):
-    """Visualizes predictions on random test samples"""
+def visualize_prediction(model, x_test, y_test, num_samples=5, save_path="predictions.png"):
+    """Visualizes predictions on random test samples and saves to file"""
     custom_cmap = ListedColormap([
         (60/255, 16/255, 152/255),   # Building
         (132/255, 41/255, 246/255),  # Land
@@ -74,28 +74,78 @@ def visualize_prediction(model, x_test, y_test, num_samples=4):
         (155/255, 155/255, 155/255)  # Unlabeled
     ])
     
-    y_pred = model.predict(x_test[:num_samples*2]) # Predict more than needed just in case
-    
     indices = np.random.choice(len(x_test), num_samples, replace=False)
+    
+    plt.figure(figsize=(15, 4 * num_samples))
     
     for i, idx in enumerate(indices):
         test_img = x_test[idx]
         true_mask = np.argmax(y_test[idx], axis=-1)
-        pred_mask = np.argmax(model.predict(np.expand_dims(test_img, 0))[0], axis=-1)
+        pred_mask = np.argmax(model.predict(np.expand_dims(test_img, 0), verbose=0)[0], axis=-1)
         
-        plt.figure(figsize=(15, 5))
-        plt.subplot(131)
+        # Original Image
+        plt.subplot(num_samples, 3, i*3 + 1)
         plt.imshow(test_img)
         plt.title(f"Sample {idx}")
         plt.axis('off')
         
-        plt.subplot(132)
+        # True Mask
+        plt.subplot(num_samples, 3, i*3 + 2)
         plt.imshow(true_mask, cmap=custom_cmap, vmin=0, vmax=5)
-        plt.title("True Mask")
+        plt.title("Ground Truth")
         plt.axis('off')
         
-        plt.subplot(133)
+        # Predicted Mask
+        plt.subplot(num_samples, 3, i*3 + 3)
         plt.imshow(pred_mask, cmap=custom_cmap, vmin=0, vmax=5)
-        plt.title("Predicted Mask")
+        plt.title("Model Prediction")
         plt.axis('off')
-        plt.show()
+        
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches='tight')
+    print(f"Saved visualization to {save_path}")
+
+from sklearn.metrics import confusion_matrix
+
+def evaluate_model_metrics(model, x_test, y_test, batch_size=16, num_classes=6):
+    """Calculates Confusion Matrix and Per-Class Metrics efficiently in batches"""
+    print("Calculating Confusion Matrix...")
+    cm = np.zeros((num_classes, num_classes), dtype=np.int64)
+    
+    for i in range(0, len(x_test), batch_size):
+        x_batch = x_test[i:i+batch_size]
+        y_batch = y_test[i:i+batch_size]
+        
+        y_pred_batch = model.predict(x_batch, verbose=0)
+        
+        y_true_labels = np.argmax(y_batch, axis=-1).flatten()
+        y_pred_labels = np.argmax(y_pred_batch, axis=-1).flatten()
+        
+        cm += confusion_matrix(y_true_labels, y_pred_labels, labels=np.arange(num_classes))
+        
+    print("Confusion Matrix:\n", cm)
+    print("\n--- Per-Class Metrics (Manual Calculation) ---")
+    
+    class_names = ["Unlabeled", "Building", "Land", "Road", "Vegetation", "Water"]
+    ious = []
+    
+    for i in range(num_classes):
+        tp = cm[i, i]
+        fp = cm[:, i].sum() - tp
+        fn = cm[i, :].sum() - tp
+        
+        iou = tp / (tp + fp + fn + 1e-6)
+        accuracy_recall = tp / (tp + fn + 1e-6)
+        precision = tp / (tp + fp + 1e-6)
+        
+        ious.append(iou)
+        
+        print(f"Class: {class_names[i]} (ID: {i})")
+        print(f"  IoU:                 {iou:.4f}")
+        print(f"  Accuracy (Recall):   {accuracy_recall:.4f}")
+        print(f"  Precision:           {precision:.4f}")
+        print("-" * 40)
+        
+    mean_iou = np.mean(ious)
+    print(f"Calculated Mean IoU (all classes): {mean_iou:.4f}")
+    return cm, ious

@@ -44,6 +44,24 @@ To customize training:
 python main.py --epochs 100 --batch_size 16 --lr 1e-5 --visualize
 ```
 
+### Ablation Study
+You can systematically disable the Attention Gates and Residual Connections to perform an ablation study and compare model performances:
+
+**1. Base U-Net (No Attention, No Residuals):**
+```bash
+python main.py --disable_attention --disable_residual --model_save_path "base_unet.keras"
+```
+
+**2. Attention U-Net (Attention ON, Residuals OFF):**
+```bash
+python main.py --disable_residual --model_save_path "attention_unet.keras"
+```
+
+**3. Residual U-Net (Residuals ON, Attention OFF):**
+```bash
+python main.py --disable_attention --model_save_path "residual_unet.keras"
+```
+
 ### Parameters
 - `--data_path`: Path to the dataset (default: "Semantic segmentation dataset").
 - `--patch_size`: Size of patches (default: 256).
@@ -53,6 +71,8 @@ python main.py --epochs 100 --batch_size 16 --lr 1e-5 --visualize
 - `--lr`: Learning rate (default: 8e-6).
 - `--model_save_path`: Path to save the model (default: "model.keras").
 - `--visualize`: Show predictions after training.
+- `--disable_attention`: Disable attention gates for ablation study.
+- `--disable_residual`: Disable residual connections for ablation study.
 
 ## Dataset
 The dataset should be organized in tiles, with `images/` and `masks/` subdirectories in each tile.

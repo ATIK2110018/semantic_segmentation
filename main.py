@@ -37,9 +37,15 @@ def main(args):
     print(f"Dataset prepared: {len(x_train)} training samples, {len(x_test)} testing samples.")
 
     # 2. Build Model
-    print("Building model...")
+    use_attention = not args.disable_attention
+    use_residual = not args.disable_residual
     img_height, img_width, img_channels = x_train.shape[1:]
-    model = build_residual_attention_unet(n_classes, img_height, img_width, img_channels)
+    model = build_residual_attention_unet(
+        n_classes, img_height, img_width, img_channels,
+        use_attention=use_attention,
+        use_residual=use_residual
+    )
+    print(f"Building model: {model.name}...")
     
     # 3. Calculate Class Weights for Loss
     # We use argmax to get the labels for weight calculation
@@ -95,6 +101,10 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
     parser.add_argument("--model_save_path", type=str, default="model.keras", help="Path to save the model")
     parser.add_argument("--visualize", action="store_true", help="Visualize predictions after training")
+    
+    # Ablation Study Arguments
+    parser.add_argument("--disable_attention", action="store_true", help="Disable attention gates for ablation study")
+    parser.add_argument("--disable_residual", action="store_true", help="Disable residual connections for ablation study")
     
     args = parser.parse_args()
     main(args)
