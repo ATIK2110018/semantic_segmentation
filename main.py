@@ -73,18 +73,24 @@ def main(args):
 
     # 5. Train Model
     print("Starting training...")
+    
+    # Create tf.data.Dataset to avoid slow memory transfers with MirroredStrategy
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = train_dataset.shuffle(buffer_size=1024).batch(args.batch_size).prefetch(tf.data.AUTOTUNE)
+
+    val_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    val_dataset = val_dataset.batch(args.batch_size).prefetch(tf.data.AUTOTUNE)
+
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=args.patience, verbose=1, restore_best_weights=True),
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1)
     ]
     
     history = model.fit(
-        x_train, y_train,
-        validation_data=(x_test, y_test),
+        train_dataset,
+        validation_data=val_dataset,
         epochs=args.epochs,
-        batch_size=args.batch_size,
-        callbacks=callbacks,
-        shuffle=True
+        callbacks=callbacks
     )
 
     # 6. Save Model
