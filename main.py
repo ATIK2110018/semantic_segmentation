@@ -108,7 +108,7 @@ if __name__ == "__main__":
     parser.add_argument("--patch_size", type=int, default=256, help="Size of patches")
     parser.add_argument("--patch_step", type=int, default=160, help="Step size for patching")
     parser.add_argument("--epochs", type=int, default=170, help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
     parser.add_argument("--lr", type=float, default=8e-6, help="Learning rate")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
     parser.add_argument("--model_save_path", type=str, default="model.keras", help="Path to save the model")
