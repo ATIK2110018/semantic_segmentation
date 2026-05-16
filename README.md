@@ -66,7 +66,7 @@ python main.py --disable_attention --model_save_path "residual_unet.keras"
 - `--data_path`: Path to the dataset (default: "Semantic segmentation dataset").
 - `--patch_size`: Size of patches (default: 256).
 - `--patch_step`: Step size for patching (default: 160).
-- `--epochs`: Number of training epochs (default: 200).
+- `--epochs`: Number of training epochs (default: 170).
 - `--batch_size`: Batch size (default: 16).
 - `--lr`: Learning rate (default: 8e-6).
 - `--model_save_path`: Path to save the model (default: "model.keras").
