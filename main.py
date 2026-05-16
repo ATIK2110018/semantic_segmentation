@@ -36,16 +36,14 @@ def main(args):
     )
     print(f"Dataset prepared: {len(x_train)} training samples, {len(x_test)} testing samples.")
 
+    # Set up distributed strategy
+    strategy = tf.distribute.MirroredStrategy()
+    print(f"Number of devices: {strategy.num_replicas_in_sync}")
+
     # 2. Build Model
     use_attention = not args.disable_attention
     use_residual = not args.disable_residual
     img_height, img_width, img_channels = x_train.shape[1:]
-    model = build_residual_attention_unet(
-        n_classes, img_height, img_width, img_channels,
-        use_attention=use_attention,
-        use_residual=use_residual
-    )
-    print(f"Building model: {model.name}...")
     
     # 3. Calculate Class Weights for Loss
     # We use argmax to get the labels for weight calculation
@@ -53,17 +51,25 @@ def main(args):
     class_weights = calculate_class_weights(y_train_labels)
     print(f"Calculated class weights: {class_weights}")
 
-    # 4. Compile Model
-    loss_fn = get_masked_loss(class_weights)
-    model.compile(
-        optimizer=Adam(learning_rate=args.lr),
-        loss=loss_fn,
-        metrics=[
-            sm.metrics.IOUScore(per_image=False),
-            sm.metrics.FScore(beta=1),
-            'accuracy'
-        ]
-    )
+    with strategy.scope():
+        model = build_residual_attention_unet(
+            n_classes, img_height, img_width, img_channels,
+            use_attention=use_attention,
+            use_residual=use_residual
+        )
+        print(f"Building model: {model.name}...")
+
+        # 4. Compile Model
+        loss_fn = get_masked_loss(class_weights)
+        model.compile(
+            optimizer=Adam(learning_rate=args.lr),
+            loss=loss_fn,
+            metrics=[
+                sm.metrics.IOUScore(per_image=False),
+                sm.metrics.FScore(beta=1),
+                'accuracy'
+            ]
+        )
 
     # 5. Train Model
     print("Starting training...")
