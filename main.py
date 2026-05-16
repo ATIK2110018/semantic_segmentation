@@ -67,24 +67,18 @@ def main(args):
 
     # 5. Train Model
     print("Starting training...")
-    
-    # Create tf.data.Dataset to avoid slow memory transfers with MirroredStrategy
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-    train_dataset = train_dataset.shuffle(buffer_size=1024).batch(args.batch_size).prefetch(tf.data.AUTOTUNE)
-
-    val_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    val_dataset = val_dataset.batch(args.batch_size).prefetch(tf.data.AUTOTUNE)
-
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=args.patience, verbose=1, restore_best_weights=True),
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1)
     ]
     
     history = model.fit(
-        train_dataset,
-        validation_data=val_dataset,
+        x_train, y_train,
+        validation_data=(x_test, y_test),
         epochs=args.epochs,
-        callbacks=callbacks
+        batch_size=args.batch_size,
+        callbacks=callbacks,
+        shuffle=True
     )
 
     # 6. Save Model
@@ -102,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--patch_size", type=int, default=256, help="Size of patches")
     parser.add_argument("--patch_step", type=int, default=160, help="Step size for patching")
     parser.add_argument("--epochs", type=int, default=170, help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("--lr", type=float, default=8e-6, help="Learning rate")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
     parser.add_argument("--model_save_path", type=str, default="model.keras", help="Path to save the model")
