@@ -69,7 +69,7 @@ def main(args):
     print("Starting training...")
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=args.patience, verbose=1, restore_best_weights=True),
-        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1)
+        ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=15, verbose=1, min_lr=1e-7)
     ]
     
     history = model.fit(
