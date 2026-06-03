@@ -1,151 +1,174 @@
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-import segmentation_models as sm
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 
-# Define class weights globally or calculate them
-def calculate_class_weights(labels):
-    """Calculates class weights based on frequency"""
-    cls_counts = np.bincount(labels.reshape(-1), minlength=6)
-    freq = cls_counts / np.maximum(1, cls_counts.sum())
-    cw = 1.0 / np.sqrt(freq + 1e-6)
-    cw = cw / cw.sum()
-    return cw.astype(np.float32)
+
+def calculate_class_weights(labels, num_classes=None, ignore_label=None):
+    """Calculate inverse-frequency class weights for one-hot segmentation loss."""
+    if num_classes is None:
+        num_classes = int(np.max(labels)) + 1
+
+    cls_counts = np.bincount(labels.reshape(-1), minlength=num_classes).astype(np.float32)
+    weights = np.zeros(num_classes, dtype=np.float32)
+    present = cls_counts > 0
+    weights[present] = 1.0 / np.sqrt(cls_counts[present] / cls_counts[present].sum())
+
+    if ignore_label is not None and 0 <= ignore_label < num_classes:
+        weights[ignore_label] = 0.0
+
+    total = weights.sum()
+    if total > 0:
+        weights = weights / total
+    return weights.astype(np.float32)
+
 
 def jacard_coef(y_true, y_pred):
-    """Jaccard Coefficient (IoU)"""
+    """Jaccard Coefficient (IoU)."""
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
-    return (intersection + 1.0) / (K.sum(y_true_f) + K.sum(y_pred_f) - intersection + 1.0)
+    return (intersection + 1.0) / (
+        K.sum(y_true_f) + K.sum(y_pred_f) - intersection + 1.0
+    )
 
-def get_masked_loss(class_weights):
-    """Returns a combined Dice and Focal loss function that masks the Unlabeled class"""
-    dice_loss = sm.losses.DiceLoss(class_weights=class_weights)
-    focal_loss = sm.losses.CategoricalFocalLoss()
-    
-    def masked_total_loss(y_true, y_pred):
-        # Mask out Unlabeled class (index 0)
-        mask = tf.not_equal(tf.argmax(y_true, axis=-1), 0)
-        mask = tf.cast(mask, tf.float32)
-        loss = 0.5 * dice_loss(y_true, y_pred) + 0.5 * focal_loss(y_true, y_pred)
-        return tf.reduce_sum(loss * mask) / (tf.reduce_sum(mask) + 1e-6)
-        
-    return masked_total_loss
 
-def plot_history(history, save_path='training_history.png'):
-    """Plots training and validation loss and IoU"""
+def get_masked_loss(class_weights, ignore_label=None):
+    """Return native TensorFlow Dice + Focal loss with optional ignored label masking."""
+    class_weights_tf = tf.constant(class_weights, dtype=tf.float32)
+
+    def total_loss(y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.clip_by_value(tf.cast(y_pred, tf.float32), 1e-7, 1.0 - 1e-7)
+
+        valid_mask = tf.ones(tf.shape(y_true)[:-1], dtype=tf.float32)
+        if ignore_label is not None:
+            valid_mask = tf.cast(tf.not_equal(tf.argmax(y_true, axis=-1), ignore_label), tf.float32)
+
+        pixel_weights = tf.reduce_sum(y_true * class_weights_tf, axis=-1)
+        categorical_ce = -tf.reduce_sum(y_true * tf.math.log(y_pred), axis=-1)
+        pt = tf.reduce_sum(y_true * y_pred, axis=-1)
+        focal = tf.pow(1.0 - pt, 2.0) * categorical_ce * pixel_weights
+        focal = tf.reduce_sum(focal * valid_mask) / (tf.reduce_sum(valid_mask) + 1e-6)
+
+        mask_expanded = tf.expand_dims(valid_mask, axis=-1)
+        y_true_masked = y_true * mask_expanded
+        y_pred_masked = y_pred * mask_expanded
+        intersection = tf.reduce_sum(y_true_masked * y_pred_masked, axis=[0, 1, 2])
+        denominator = tf.reduce_sum(y_true_masked + y_pred_masked, axis=[0, 1, 2])
+        dice_per_class = (2.0 * intersection + 1.0) / (denominator + 1.0)
+        dice_loss = 1.0 - tf.reduce_sum(dice_per_class * class_weights_tf)
+
+        return 0.5 * dice_loss + 0.5 * focal
+
+    return total_loss
+
+
+def plot_history(history, save_path="training_history.png"):
+    """Plot training and validation loss and IoU."""
+    import matplotlib.pyplot as plt
+
     plt.figure(figsize=(12, 5))
-    
-    # Plot Loss
     plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Train Loss')
-    plt.plot(history.history['val_loss'], label='Val Loss')
-    plt.title('Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.plot(history.history["loss"], label="Train Loss")
+    plt.plot(history.history["val_loss"], label="Val Loss")
+    plt.title("Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
     plt.legend()
-    
-    # Plot IoU
-    iou_key = 'iou_score' if 'iou_score' in history.history else 'iou'
+
+    iou_key = "iou_score" if "iou_score" in history.history else "iou"
     if iou_key in history.history:
         plt.subplot(1, 2, 2)
-        plt.plot(history.history[iou_key], label='Train IoU')
-        plt.plot(history.history[f'val_{iou_key}'], label='Val IoU')
-        plt.title('IoU Score')
-        plt.xlabel('Epoch')
-        plt.ylabel('Score')
+        plt.plot(history.history[iou_key], label="Train IoU")
+        plt.plot(history.history[f"val_{iou_key}"], label="Val IoU")
+        plt.title("IoU Score")
+        plt.xlabel("Epoch")
+        plt.ylabel("Score")
         plt.legend()
-        
+
     plt.tight_layout()
     plt.savefig(save_path)
-    plt.show()
+    plt.close()
 
-def visualize_prediction(model, x_test, y_test, num_samples=5, save_path="predictions.png"):
-    """Visualizes predictions on random test samples and saves to file"""
-    custom_cmap = ListedColormap([
-        (60/255, 16/255, 152/255),   # Building
-        (132/255, 41/255, 246/255),  # Land
-        (110/255, 193/255, 228/255), # Road
-        (254/255, 221/255, 58/255),  # Vegetation
-        (226/255, 169/255, 41/255),  # Water
-        (155/255, 155/255, 155/255)  # Unlabeled
-    ])
-    
-    indices = np.random.choice(len(x_test), num_samples, replace=False)
-    
-    plt.figure(figsize=(15, 4 * num_samples))
-    
+
+def display_image(image):
+    """Return RGB channels suitable for matplotlib from RGB or Sentinel-2 B2/B3/B4/B8."""
+    if image.shape[-1] >= 4:
+        rgb = image[..., [2, 1, 0]]
+    else:
+        rgb = image[..., :3]
+    return np.clip(rgb, 0.0, 1.0)
+
+
+def visualize_prediction(
+    model,
+    x_test,
+    y_test,
+    num_samples=5,
+    save_path="predictions.png",
+    cmap=None,
+    class_count=None,
+):
+    """Visualize predictions on random test samples and save to file."""
+    import matplotlib.pyplot as plt
+
+    class_count = class_count or y_test.shape[-1]
+    indices = np.random.choice(len(x_test), min(num_samples, len(x_test)), replace=False)
+    plt.figure(figsize=(15, 4 * len(indices)))
+
     for i, idx in enumerate(indices):
         test_img = x_test[idx]
         true_mask = np.argmax(y_test[idx], axis=-1)
         pred_mask = np.argmax(model.predict(np.expand_dims(test_img, 0), verbose=0)[0], axis=-1)
-        
-        # Original Image
-        plt.subplot(num_samples, 3, i*3 + 1)
-        plt.imshow(test_img)
+
+        plt.subplot(len(indices), 3, i * 3 + 1)
+        plt.imshow(display_image(test_img))
         plt.title(f"Sample {idx}")
-        plt.axis('off')
-        
-        # True Mask
-        plt.subplot(num_samples, 3, i*3 + 2)
-        plt.imshow(true_mask, cmap=custom_cmap, vmin=0, vmax=5)
+        plt.axis("off")
+
+        plt.subplot(len(indices), 3, i * 3 + 2)
+        plt.imshow(true_mask, cmap=cmap, vmin=0, vmax=class_count - 1, interpolation="nearest")
         plt.title("Ground Truth")
-        plt.axis('off')
-        
-        # Predicted Mask
-        plt.subplot(num_samples, 3, i*3 + 3)
-        plt.imshow(pred_mask, cmap=custom_cmap, vmin=0, vmax=5)
+        plt.axis("off")
+
+        plt.subplot(len(indices), 3, i * 3 + 3)
+        plt.imshow(pred_mask, cmap=cmap, vmin=0, vmax=class_count - 1, interpolation="nearest")
         plt.title("Model Prediction")
-        plt.axis('off')
-        
+        plt.axis("off")
+
     plt.tight_layout()
-    plt.savefig(save_path, bbox_inches='tight')
-    print(f"Saved visualization to {save_path}")
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
 
-from sklearn.metrics import confusion_matrix
 
-def evaluate_model_metrics(model, x_test, y_test, batch_size=16, num_classes=6):
-    """Calculates Confusion Matrix and Per-Class Metrics efficiently in batches"""
-    print("Calculating Confusion Matrix...")
+def evaluate_model_metrics(model, x_test, y_test, batch_size=16, class_names=None):
+    """Calculate confusion matrix and per-class metrics efficiently in batches."""
+    from sklearn.metrics import confusion_matrix
+
+    num_classes = y_test.shape[-1]
+    class_names = class_names or [f"Class {i}" for i in range(num_classes)]
     cm = np.zeros((num_classes, num_classes), dtype=np.int64)
-    
+
     for i in range(0, len(x_test), batch_size):
-        x_batch = x_test[i:i+batch_size]
-        y_batch = y_test[i:i+batch_size]
-        
+        x_batch = x_test[i : i + batch_size]
+        y_batch = y_test[i : i + batch_size]
         y_pred_batch = model.predict(x_batch, verbose=0)
-        
-        y_true_labels = np.argmax(y_batch, axis=-1).flatten()
-        y_pred_labels = np.argmax(y_pred_batch, axis=-1).flatten()
-        
-        cm += confusion_matrix(y_true_labels, y_pred_labels, labels=np.arange(num_classes))
-        
-    print("Confusion Matrix:\n", cm)
-    print("\n--- Per-Class Metrics (Manual Calculation) ---")
-    
-    class_names = ["Unlabeled", "Building", "Land", "Road", "Vegetation", "Water"]
+        cm += confusion_matrix(
+            np.argmax(y_batch, axis=-1).flatten(),
+            np.argmax(y_pred_batch, axis=-1).flatten(),
+            labels=np.arange(num_classes),
+        )
+
     ious = []
-    
-    for i in range(num_classes):
+    for i, name in enumerate(class_names):
         tp = cm[i, i]
         fp = cm[:, i].sum() - tp
         fn = cm[i, :].sum() - tp
-        
         iou = tp / (tp + fp + fn + 1e-6)
-        accuracy_recall = tp / (tp + fn + 1e-6)
         precision = tp / (tp + fp + 1e-6)
-        
+        recall = tp / (tp + fn + 1e-6)
         ious.append(iou)
-        
-        print(f"Class: {class_names[i]} (ID: {i})")
-        print(f"  IoU:                 {iou:.4f}")
-        print(f"  Accuracy (Recall):   {accuracy_recall:.4f}")
-        print(f"  Precision:           {precision:.4f}")
-        print("-" * 40)
-        
-    mean_iou = np.mean(ious)
-    print(f"Calculated Mean IoU (all classes): {mean_iou:.4f}")
+        print(f"{name}: IoU={iou:.4f}, Precision={precision:.4f}, Recall={recall:.4f}")
+
+    print(f"Mean IoU: {np.mean(ious):.4f}")
     return cm, ious

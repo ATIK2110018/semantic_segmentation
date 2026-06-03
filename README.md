@@ -17,12 +17,12 @@ This project implements a **Residual Attention U-Net** for semantic segmentation
 │   ├── dataset.py          # Data loading, patching, and preprocessing
 │   └── utils.py            # Loss functions, metrics, and visualization helpers
 ├── main.py                 # Training + full evaluation pipeline
-├── evaluate.py             # Standalone evaluation (load saved model)
-├── kaggle_evaluate.py      # Self-contained Kaggle evaluation (no src/ imports)
+├── dataset/                # GeoTIFF dataset directory
+│   ├── sylhet_sentinel2_30m_2023.tif
+│   └── sylhet_esri_lulc_30m_mask_2023.tif
 ├── models/                 # Saved model weights (.keras)
 ├── results/                # Evaluation outputs (plots, CSV, confusion matrix)
-├── requirements.txt        # Dependencies
-└── Semantic segmentation dataset/   # Dataset directory
+└── requirements.txt        # Dependencies
 ```
 
 ## Installation
@@ -32,27 +32,29 @@ pip install -r requirements.txt
 ```
 
 ### Hardware Requirements
-- **GPU recommended**: Default config (`--batch_size 16`) is optimized for Kaggle/Colab GPUs (T4 or P100)
-- **CPU fallback**: Reduce `--batch_size` to 4 or increase `--patch_step` if running locally
+- **GPU recommended**: Default config (`--batch_size 16`) is optimized for GPUs with at least 8GB VRAM.
+- **CPU fallback**: Reduce `--batch_size` to 4 or increase `--patch_step` if running locally without a GPU.
 
 ## Usage
 
 ### Training + Evaluation (single run)
 
-Training automatically runs full evaluation after completion — no separate step needed.
+Training automatically runs full evaluation after completion.
 
-**Local:**
-```bash
-python main.py --output_dir results/full_model
-```
-
-**Kaggle:**
+**Sentinel-2 + ESRI LULC GeoTIFFs (using the `dataset/` folder):**
 ```bash
 python main.py \
-  --data_path "/kaggle/input/datasets/humansintheloop/semantic-segmentation-of-aerial-imagery/Semantic segmentation dataset" \
-  --model_save_path /kaggle/working/residual_attention_unet.keras \
-  --output_dir /kaggle/working/results/full_model
+  --data_path dataset \
+  --patch_step 160 \
+  --output_dir results/sentinel_esri
 ```
+
+**Local (if using original aerial imagery dataset):**
+```bash
+python main.py --data_path "Semantic segmentation dataset" --output_dir results/aerial_imagery
+```
+
+**Kaggle:** See the [Kaggle Deployment](#kaggle-deployment) section below.
 
 ### Ablation Study
 
@@ -104,46 +106,76 @@ After each run, the `--output_dir` will contain:
 
 | Argument | Default | Description |
 |---|---|---|
-| `--data_path` | `Semantic segmentation dataset` | Path to dataset |
-| `--patch_size` | `256` | Patch dimensions |
-| `--patch_step` | `160` | Step size for patching |
-| `--epochs` | `170` | Max training epochs |
-| `--batch_size` | `16` | Batch size |
-| `--lr` | `8e-6` | Initial learning rate |
-| `--patience` | `20` | Early stopping patience |
+| `--data_path` | `dataset` | Path to dataset directory |
+| `--image_tif` | `None` | Optional Sentinel-2 GeoTIFF path (overrides auto-detection) |
+| `--mask_tif` | `None` | Optional ESRI LULC mask GeoTIFF path (overrides auto-detection) |
+| `--patch_size` | `256` | Patch dimensions (square) |
+| `--patch_step` | `256` | Step size for patching (use < patch_size for overlap) |
+| `--epochs` | `200` | Max training epochs |
+| `--batch_size` | `16` | Training batch size |
+| `--lr` | `1e-4` | Initial learning rate |
+| `--patience` | `30` | Early stopping patience |
 | `--model_save_path` | `model.keras` | Path to save trained model |
 | `--output_dir` | `results` | Directory for evaluation outputs |
 | `--num_samples` | `8` | Number of prediction samples to visualize |
 | `--disable_attention` | `false` | Disable attention gates (ablation) |
 | `--disable_residual` | `false` | Disable residual connections (ablation) |
 
-## Classes
+## Classes (ESRI LULC)
+
+The GeoTIFF dataset uses ESRI Land Use / Land Cover classes:
 
 | ID | Class | Color |
 |---|---|---|
-| 0 | Unlabeled | ![#9B9B9B](https://via.placeholder.com/15/9B9B9B/9B9B9B.png) Gray |
-| 1 | Building | ![#3C1098](https://via.placeholder.com/15/3C1098/3C1098.png) Dark Purple |
-| 2 | Land | ![#8429F6](https://via.placeholder.com/15/8429F6/8429F6.png) Purple |
-| 3 | Road | ![#6EC1E4](https://via.placeholder.com/15/6EC1E4/6EC1E4.png) Light Blue |
-| 4 | Vegetation | ![#FEDD3A](https://via.placeholder.com/15/FEDD3A/FEDD3A.png) Yellow |
-| 5 | Water | ![#E2A929](https://via.placeholder.com/15/E2A929/E2A929.png) Orange |
+| 1 | Water | ![#1A5BAB](https://via.placeholder.com/15/1A5BAB/1A5BAB.png) Blue |
+| 2 | Trees | ![#358221](https://via.placeholder.com/15/358221/358221.png) Green |
+| 3 | Flooded Vegetation | ![#87D19E](https://via.placeholder.com/15/87D19E/87D19E.png) Light Green |
+| 4 | Crops | ![#FFDB5C](https://via.placeholder.com/15/FFDB5C/FFDB5C.png) Yellow |
+| 5 | Built Area | ![#ED022A](https://via.placeholder.com/15/ED022A/ED022A.png) Red |
+| 6 | Bare Ground | ![#EDE9E4](https://via.placeholder.com/15/EDE9E4/EDE9E4.png) Beige |
+| 7 | Snow/Ice | ![#F2FAFF](https://via.placeholder.com/15/F2FAFF/F2FAFF.png) White |
+| 8 | Clouds | ![#C8C8C8](https://via.placeholder.com/15/C8C8C8/C8C8C8.png) Gray |
+| 9 | Rangeland | ![#C6AD8D](https://via.placeholder.com/15/C6AD8D/C6AD8D.png) Tan |
 
-## Dataset
+## Kaggle Deployment
 
-The [Semantic Segmentation of Aerial Imagery](https://www.kaggle.com/datasets/humansintheloop/semantic-segmentation-of-aerial-imagery) dataset should be organized as:
+### Step 1 — Push to GitHub
+
+Make sure your dataset TIF files and notebook are committed:
+```bash
+git add .
+git commit -m "Add 30m GeoTIFF dataset and Kaggle notebook"
+git push origin main
 ```
-Semantic segmentation dataset/
-├── Tile 1/
-│   ├── images/
-│   │   └── image_part_001.jpg
-│   └── masks/
-│       └── image_part_001.png
-├── Tile 2/
-│   └── ...
-└── Tile 8/
+
+### Step 2 — Create a Kaggle Notebook
+
+1. Go to [kaggle.com/code](https://www.kaggle.com/code) → **New Notebook**
+2. Set **Accelerator → GPU T4 x2** (Settings panel on the right)
+3. Enable **Internet** (Settings → Internet → On)
+4. Import `kaggle_notebook.ipynb` from this repo (File → Import Notebook → GitHub URL)
+   - Or copy-paste the notebook cells manually
+
+### Step 3 — Set Your Repo URL & Run
+
+In **Cell 1** of the notebook, set:
+```python
+GITHUB_REPO_URL = "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git"
 ```
+Then **Run All** — training will stream live output directly in the notebook.
+
+### Kaggle Training Parameters
+
+| Parameter | Value | Notes |
+|---|---|---|
+| `--patch_size` | `256` | Full resolution patches |
+| `--patch_step` | `128` | 50% overlap for more samples |
+| `--batch_size` | `16` | Safe for 16 GB T4/P100 VRAM |
+| `--epochs` | `200` | With early stopping (patience=30) |
+| `--lr` | `1e-4` | Adam optimizer |
+
+Outputs are saved to `/kaggle/working/results/30m_full_model/` and displayed inline after training.
 
 ## Acknowledgments
-- [segmentation-models](https://github.com/qubvel/segmentation_models) — metrics and loss functions
-- [patchify](https://github.com/dovahcrow/patchify.py) — image patching
-- [Humans in the Loop](https://humansintheloop.org/) — aerial imagery dataset
+- [Sentinel-2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) — multispectral satellite imagery
+- [ESRI LULC](https://www.arcgis.com/home/item.html?id=cfcb7609de5f478eb7666240902d4d3d) — land use / land cover labels

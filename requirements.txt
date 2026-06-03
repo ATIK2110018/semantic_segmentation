@@ -1,6 +1,4 @@
 tensorflow>=2.15.0
-segmentation-models
-patchify
 opencv-python
 numpy
 matplotlib
@@ -8,3 +6,4 @@ scikit-learn
 joblib
 pyyaml
 seaborn
+rasterio
