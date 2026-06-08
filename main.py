@@ -500,13 +500,15 @@ def main(args):
     print("Starting training...")
     callbacks = [
         EarlyStopping(
-            monitor="val_loss",
+            monitor="val_accuracy",
+            mode="max",
             patience=args.patience,
             verbose=1,
             restore_best_weights=True,
         ),
         ReduceLROnPlateau(
-            monitor="val_loss",
+            monitor="val_accuracy",
+            mode="max",
             factor=0.5,
             patience=15,
             verbose=1,
