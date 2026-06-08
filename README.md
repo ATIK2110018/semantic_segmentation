@@ -3,11 +3,13 @@
 This project implements a **Residual Attention U-Net** for semantic segmentation of aerial imagery using the [Humans in the Loop](https://humansintheloop.org/) dataset. The model combines residual connections and attention gates within a U-Net architecture, trained with a combined Dice + Focal loss.
 
 ## Features
-- **Residual Attention U-Net**: Residual connections for gradient flow + attention gates for skip connection refinement
-- **Custom Loss**: Combined Dice and Focal loss with class weighting and unlabeled pixel masking
-- **Automated Patching**: Handles large aerial images by patchifying them into 256×256 segments
-- **Built-in Evaluation**: Per-class metrics (IoU, Precision, Recall, F1), confusion matrix, and prediction visualizations — all generated automatically after training
-- **Ablation Study Support**: Toggle residual/attention components via CLI flags
+- **Residual Attention U-Net**: Residual connections inside conv blocks for gradient flow + spatial attention gates on skip connections to refine features.
+- **6-Channel Feature Fusion**: Appends on-the-fly NDVI (Vegetation Index) and NDWI (Water Index) to RGB + NIR bands, feeding the model with explicit land-cover priors.
+- **Boundary-Weighted Focal Loss**: Utilizes dynamic morphological edge extraction during backpropagation using 2D Max Pooling to scale the Focal Loss for border pixels by 3x.
+- **Automated Patching**: Handles large satellite GeoTIFFs by patchifying them into 256×256 segments.
+- **Built-in Evaluation**: Per-class metrics, confusion matrices, 4-column predictions (RGB, NDVI, GT, Pred), and boundary overlays — generated automatically after training.
+- **Flexible Optimization Schedules**: Supports continuous Cosine Annealing decay and validation-plateau learning rate schedules.
+- **Ablation Study Support**: Toggle residual/attention components via CLI flags.
 
 ## Project Structure
 ```
@@ -98,7 +100,7 @@ After each run, the `--output_dir` will contain:
 | `confusion_matrix.png` | Heatmap (raw counts + normalized %) |
 | `per_class_iou.png` | Per-class IoU bar chart with mean IoU lines |
 | `all_metrics_chart.png` | Grouped bar chart (IoU, Precision, Recall, F1) |
-| `predictions.png` | 8 samples: Input → Ground Truth → Prediction |
+| `predictions.png` | 5 samples: Input RGB → NDVI Index → Ground Truth → Prediction |
 | `training_history.png` | Loss and IoU curves over epochs |
 | `class_legend.png` | Color legend for the 6 segmentation classes |
 | `boundary_results_global.csv` | Global BF-score, Boundary IoU, Boundary Precision/Recall |
@@ -121,9 +123,12 @@ After each run, the `--output_dir` will contain:
 | `--patience` | `30` | Early stopping patience |
 | `--model_save_path` | `model.keras` | Path to save trained model |
 | `--output_dir` | `results` | Directory for evaluation outputs |
-| `--num_samples` | `8` | Number of prediction samples to visualize |
+| `--num_samples` | `5` | Number of prediction samples to visualize |
 | `--disable_attention` | `false` | Disable attention gates (ablation) |
+| `--disable_residual` | `false` | Disable residual connections (ablation) |
 | `--boundary_kernel_size` | `3` | Structuring element size for morphological gradient boundary extraction |
+| `--boundary_multiplier` | `2.0` | Weight multiplier for boundary pixels in focal loss (set to 0.0 to disable) |
+| `--lr_schedule` | `cosine` | Learning rate schedule type (`cosine` or `plateau`) |
 
 ## Boundary-Aware Evaluation
 
