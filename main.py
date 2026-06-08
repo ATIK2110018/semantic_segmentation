@@ -490,7 +490,11 @@ def main(args):
     )
     print(f"Building model: {model.name}...")
 
-    loss_fn = get_masked_loss(class_weights, ignore_label=metadata["ignore_label"])
+    loss_fn = get_masked_loss(
+        class_weights,
+        ignore_label=metadata["ignore_label"],
+        boundary_multiplier=args.boundary_multiplier,
+    )
     model.compile(
         optimizer=Adam(learning_rate=args.lr),
         loss=loss_fn,
@@ -600,5 +604,10 @@ if __name__ == "__main__":
         default=3,
         help="Structuring element size for morphological gradient boundary extraction (default: 3)",
     )
-
+    parser.add_argument(
+        "--boundary_multiplier",
+        type=float,
+        default=2.0,
+        help="Weight multiplier for boundary pixels in focal loss (default: 2.0, set to 0.0 to disable)",
+    )
     main(parser.parse_args())

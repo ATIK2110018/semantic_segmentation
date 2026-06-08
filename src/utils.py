@@ -32,8 +32,8 @@ def jacard_coef(y_true, y_pred):
     )
 
 
-def get_masked_loss(class_weights, ignore_label=None):
-    """Return native TensorFlow Dice + Focal loss with optional ignored label masking."""
+def get_masked_loss(class_weights, ignore_label=None, boundary_multiplier=2.0):
+    """Return native TensorFlow Dice + Focal loss with optional ignored label masking and boundary weighting."""
     class_weights_tf = tf.constant(class_weights, dtype=tf.float32)
 
     def total_loss(y_true, y_pred):
@@ -48,6 +48,31 @@ def get_masked_loss(class_weights, ignore_label=None):
         categorical_ce = -tf.reduce_sum(y_true * tf.math.log(y_pred), axis=-1)
         pt = tf.reduce_sum(y_true * y_pred, axis=-1)
         focal = tf.pow(1.0 - pt, 2.0) * categorical_ce * pixel_weights
+
+        # Boundary-weighted loss component (Path A)
+        if boundary_multiplier > 0.0:
+            # Dilation: Max pooling with 3x3 kernel on one-hot targets
+            dilation = tf.nn.max_pool2d(
+                y_true,
+                ksize=3,
+                strides=1,
+                padding="SAME"
+            )
+            # Erosion: 1.0 - Max pooling of (1.0 - one-hot targets)
+            erosion = 1.0 - tf.nn.max_pool2d(
+                1.0 - y_true,
+                ksize=3,
+                strides=1,
+                padding="SAME"
+            )
+            # Boundary map (1.0 at class transitions, 0.0 elsewhere)
+            boundary_per_class = dilation - erosion
+            boundary_map = tf.reduce_max(boundary_per_class, axis=-1)  # shape: (B, H, W)
+            
+            # Apply boundary multiplier to focus loss on edges
+            boundary_weight = 1.0 + boundary_multiplier * boundary_map
+            focal = focal * boundary_weight
+
         focal = tf.reduce_sum(focal * valid_mask) / (tf.reduce_sum(valid_mask) + 1e-6)
 
         mask_expanded = tf.expand_dims(valid_mask, axis=-1)
