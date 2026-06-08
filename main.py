@@ -25,6 +25,12 @@ from tensorflow.keras.optimizers import Adam
 from src.dataset import prepare_dataset
 from src.model import build_residual_attention_unet
 from src.utils import calculate_class_weights, display_image, get_masked_loss, plot_history
+from src.boundary_metrics import (
+    compute_boundary_metrics,
+    compute_boundary_metrics_per_class,
+    visualize_boundary_predictions,
+    plot_boundary_metrics_chart,
+)
 
 
 def make_cmap(class_colors):
@@ -299,6 +305,140 @@ def full_evaluation(
     return per_class, summary
 
 
+def boundary_evaluation(
+    model,
+    x_test,
+    y_test,
+    output_dir,
+    class_names,
+    class_colors,
+    batch_size=16,
+    num_samples=6,
+    kernel_size=3,
+):
+    """Run boundary-aware evaluation using the morphological gradient operator.
+
+    Boundary regions are delineated for both ground-truth and predicted label
+    maps using the morphological gradient (dilate − erode). Three complementary
+    outputs are produced:
+
+    1. Global metrics  – BF-score and Boundary IoU across the full test set.
+    2. Per-class metrics – boundary precision/recall/F1/IoU per semantic class.
+    3. Visualisations  – boundary overlay images and a grouped bar chart.
+
+    All results are written to *output_dir*.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    num_classes = len(class_names)
+
+    # -----------------------------------------------------------------------
+    # Collect predictions in batches
+    # -----------------------------------------------------------------------
+    print("\nCollecting predictions for boundary evaluation...")
+    y_pred_all = []
+    total_batches = (len(x_test) + batch_size - 1) // batch_size
+    for i in range(0, len(x_test), batch_size):
+        print(f"  Predicting batch {i // batch_size + 1}/{total_batches}", end="\r")
+        y_pred_all.append(model.predict(x_test[i : i + batch_size], verbose=0))
+    print(f"  Predictions complete — {len(x_test)} samples.")
+
+    y_pred_prob  = np.concatenate(y_pred_all, axis=0)          # (N, H, W, C)
+    y_true_lbl   = np.argmax(y_test, axis=-1).astype(np.int32) # (N, H, W)
+    y_pred_lbl   = np.argmax(y_pred_prob, axis=-1).astype(np.int32)
+
+    # -----------------------------------------------------------------------
+    # 1. Global boundary metrics
+    # -----------------------------------------------------------------------
+    print("\nComputing global boundary metrics (morphological gradient, k=%d)..." % kernel_size)
+    global_bnd = compute_boundary_metrics(
+        y_true_lbl, y_pred_lbl, kernel_size=kernel_size, batch_size=batch_size
+    )
+
+    print("\n" + "=" * 70)
+    print("  BOUNDARY-AWARE EVALUATION RESULTS")
+    print("=" * 70)
+    print(f"  Boundary Precision : {global_bnd['boundary_precision']:.4f}")
+    print(f"  Boundary Recall    : {global_bnd['boundary_recall']:.4f}")
+    print(f"  BF-score           : {global_bnd['bf_score']:.4f}")
+    print(f"  Boundary IoU       : {global_bnd['boundary_iou']:.4f}")
+    print(f"  Boundary pixel frac: {global_bnd['boundary_pixel_frac']:.4f}")
+    print("=" * 70)
+
+    # Save global metrics to CSV
+    global_csv = os.path.join(output_dir, "boundary_results_global.csv")
+    with open(global_csv, "w", newline="") as f:
+        import csv
+        writer = csv.writer(f)
+        writer.writerow(["Metric", "Value"])
+        for k, v in global_bnd.items():
+            writer.writerow([k, f"{v:.6f}"])
+    print(f"Saved: {global_csv}")
+
+    # -----------------------------------------------------------------------
+    # 2. Per-class boundary metrics
+    # -----------------------------------------------------------------------
+    print("\nComputing per-class boundary metrics...")
+    per_class_bnd = compute_boundary_metrics_per_class(
+        y_true_lbl, y_pred_lbl,
+        num_classes=num_classes,
+        class_names=class_names,
+        kernel_size=kernel_size,
+    )
+
+    print(f"\n{'Class':<22} {'B-Prec':>8} {'B-Recall':>10} {'BF-score':>10} {'B-IoU':>8} {'Support':>10}")
+    print("-" * 72)
+    for name in class_names:
+        m = per_class_bnd[name]
+        print(
+            f"{name:<22} {m['precision']:>8.4f} {m['recall']:>10.4f} "
+            f"{m['bf_score']:>10.4f} {m['boundary_iou']:>8.4f} {m['support']:>10,}"
+        )
+
+    per_class_csv = os.path.join(output_dir, "boundary_results_per_class.csv")
+    with open(per_class_csv, "w", newline="") as f:
+        import csv
+        writer = csv.writer(f)
+        writer.writerow(["Class", "Boundary_Precision", "Boundary_Recall",
+                         "BF_score", "Boundary_IoU", "Support"])
+        for name in class_names:
+            m = per_class_bnd[name]
+            writer.writerow([
+                name,
+                f"{m['precision']:.6f}",
+                f"{m['recall']:.6f}",
+                f"{m['bf_score']:.6f}",
+                f"{m['boundary_iou']:.6f}",
+                m['support'],
+            ])
+    print(f"Saved: {per_class_csv}")
+
+    # -----------------------------------------------------------------------
+    # 3. Visualisations
+    # -----------------------------------------------------------------------
+    # 3a. Boundary overlay plot
+    bnd_overlay_path = os.path.join(output_dir, "boundary_predictions.png")
+    visualize_boundary_predictions(
+        images=x_test,
+        y_true_labels=y_true_lbl,
+        y_pred_labels=y_pred_lbl,
+        num_samples=num_samples,
+        kernel_size=kernel_size,
+        save_path=bnd_overlay_path,
+        display_fn=display_image,
+    )
+
+    # 3b. Per-class boundary bar chart
+    bnd_chart_path = os.path.join(output_dir, "boundary_metrics_chart.png")
+    plot_boundary_metrics_chart(
+        per_class_boundary=per_class_bnd,
+        class_colors=class_colors,
+        save_path=bnd_chart_path,
+    )
+
+    print(f"\nBoundary evaluation outputs saved to: {output_dir}/")
+    return global_bnd, per_class_bnd
+
+
 def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -403,6 +543,21 @@ def main(args):
         num_samples=args.num_samples,
     )
 
+    print("\n" + "=" * 60)
+    print("  STARTING BOUNDARY-AWARE EVALUATION")
+    print("=" * 60)
+    boundary_evaluation(
+        model,
+        x_test,
+        y_test,
+        args.output_dir,
+        class_names,
+        class_colors,
+        batch_size=args.batch_size,
+        num_samples=args.num_samples,
+        kernel_size=args.boundary_kernel_size,
+    )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Residual Attention U-Net for Semantic Segmentation")
@@ -437,5 +592,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples", type=int, default=8, help="Number of prediction samples to visualize")
     parser.add_argument("--disable_attention", action="store_true", help="Disable attention gates")
     parser.add_argument("--disable_residual", action="store_true", help="Disable residual connections")
+    parser.add_argument(
+        "--boundary_kernel_size",
+        type=int,
+        default=3,
+        help="Structuring element size for morphological gradient boundary extraction (default: 3)",
+    )
 
     main(parser.parse_args())

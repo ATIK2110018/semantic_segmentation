@@ -101,6 +101,10 @@ After each run, the `--output_dir` will contain:
 | `predictions.png` | 8 samples: Input → Ground Truth → Prediction |
 | `training_history.png` | Loss and IoU curves over epochs |
 | `class_legend.png` | Color legend for the 6 segmentation classes |
+| `boundary_results_global.csv` | Global BF-score, Boundary IoU, Boundary Precision/Recall |
+| `boundary_results_per_class.csv` | Per-class boundary metrics (BF-score, Boundary IoU, etc.) |
+| `boundary_predictions.png` | 6 samples: Input → GT boundary overlay → Pred boundary overlay |
+| `boundary_metrics_chart.png` | Grouped bar chart of per-class boundary metrics |
 
 ### Parameters
 
@@ -119,7 +123,39 @@ After each run, the `--output_dir` will contain:
 | `--output_dir` | `results` | Directory for evaluation outputs |
 | `--num_samples` | `8` | Number of prediction samples to visualize |
 | `--disable_attention` | `false` | Disable attention gates (ablation) |
-| `--disable_residual` | `false` | Disable residual connections (ablation) |
+| `--boundary_kernel_size` | `3` | Structuring element size for morphological gradient boundary extraction |
+
+## Boundary-Aware Evaluation
+
+Conventional pixel-level metrics (IoU, F1) do not adequately capture segmentation quality at class boundaries — particularly for thin features such as roads, water channels, and field edges. This project introduces a complementary **boundary-aware evaluation framework** to address this gap.
+
+### Method
+
+Boundary regions are extracted from both the ground-truth and predicted label maps using the **morphological gradient operator**:
+
+```
+B(L) = dilate(L, k) ⊖ erode(L, k)
+```
+
+where `k` is a square structuring element of size `--boundary_kernel_size` (default 3×3). The resulting binary boundary maps are used to compute pixel-level statistics restricted to the boundary zone.
+
+### Metrics
+
+| Metric | Formula | Description |
+|---|---|---|
+| **Boundary Precision** | TP / (TP + FP) | Fraction of predicted boundary pixels that are true boundaries |
+| **Boundary Recall** | TP / (TP + FN) | Fraction of true boundary pixels that are correctly predicted |
+| **BF-score** | 2 · P · R / (P + R) | Harmonic mean of boundary precision and recall |
+| **Boundary IoU** | TP / (TP + FP + FN) | Intersection-over-Union restricted to boundary pixels |
+
+### Outputs
+
+After training, the following boundary evaluation files are written to `--output_dir`:
+
+- `boundary_results_global.csv` — global BF-score and Boundary IoU
+- `boundary_results_per_class.csv` — per-class breakdown
+- `boundary_predictions.png` — visual overlays of boundary regions
+- `boundary_metrics_chart.png` — grouped bar chart of per-class boundary metrics
 
 ## Classes (ESRI LULC)
 
