@@ -256,28 +256,60 @@ def full_evaluation(
     sample_count = min(num_samples, len(x_test))
     np.random.seed(42)
     indices = np.random.choice(len(x_test), sample_count, replace=False)
-    fig, axes = plt.subplots(sample_count, 3, figsize=(15, 4.5 * sample_count))
+    
+    # Determine columns based on NDVI channel presence (Level 1)
+    has_ndvi = x_test.shape[-1] >= 5
+    num_cols = 4 if has_ndvi else 3
+    
+    fig, axes = plt.subplots(sample_count, num_cols, figsize=(5 * num_cols, 4.5 * sample_count))
     if sample_count == 1:
         axes = axes[np.newaxis, :]
+        
     for i, idx in enumerate(indices):
         test_img = x_test[idx]
         true_mask = np.argmax(y_test[idx], axis=-1)
         pred_mask = np.argmax(
             model.predict(np.expand_dims(test_img, 0), verbose=0)[0], axis=-1
         )
+        
+        # Column 0: RGB Input
         axes[i, 0].imshow(display_image(test_img))
         axes[i, 0].set_title(f"Input Image (#{idx})", fontsize=12, fontweight="bold")
         axes[i, 0].axis("off")
-        axes[i, 1].imshow(
-            true_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
-        )
-        axes[i, 1].set_title("Ground Truth", fontsize=12, fontweight="bold")
-        axes[i, 1].axis("off")
-        axes[i, 2].imshow(
-            pred_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
-        )
-        axes[i, 2].set_title("Prediction", fontsize=12, fontweight="bold")
-        axes[i, 2].axis("off")
+        
+        if has_ndvi:
+            # Column 1: NDVI (Index 4)
+            axes[i, 1].imshow(test_img[..., 4], cmap="RdYlGn", vmin=0.0, vmax=1.0)
+            axes[i, 1].set_title("NDVI Index", fontsize=12, fontweight="bold")
+            axes[i, 1].axis("off")
+            
+            # Column 2: Ground Truth
+            axes[i, 2].imshow(
+                true_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
+            )
+            axes[i, 2].set_title("Ground Truth", fontsize=12, fontweight="bold")
+            axes[i, 2].axis("off")
+            
+            # Column 3: Prediction
+            axes[i, 3].imshow(
+                pred_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
+            )
+            axes[i, 3].set_title("Prediction", fontsize=12, fontweight="bold")
+            axes[i, 3].axis("off")
+        else:
+            # Column 1: Ground Truth (without NDVI)
+            axes[i, 1].imshow(
+                true_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
+            )
+            axes[i, 1].set_title("Ground Truth", fontsize=12, fontweight="bold")
+            axes[i, 1].axis("off")
+            
+            # Column 2: Prediction (without NDVI)
+            axes[i, 2].imshow(
+                pred_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
+            )
+            axes[i, 2].set_title("Prediction", fontsize=12, fontweight="bold")
+            axes[i, 2].axis("off")
     plt.suptitle(f"Predictions - {model.name}", fontsize=16, fontweight="bold", y=1.001)
     plt.tight_layout()
     predictions_path = os.path.join(output_dir, "predictions.png")
@@ -615,7 +647,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=30, help="Early stopping patience")
     parser.add_argument("--model_save_path", type=str, default="model.keras", help="Path to save the model")
     parser.add_argument("--output_dir", type=str, default="results", help="Directory for evaluation outputs")
-    parser.add_argument("--num_samples", type=int, default=8, help="Number of prediction samples to visualize")
+    parser.add_argument("--num_samples", type=int, default=5, help="Number of prediction samples to visualize")
     parser.add_argument("--disable_attention", action="store_true", help="Disable attention gates")
     parser.add_argument("--disable_residual", action="store_true", help="Disable residual connections")
     parser.add_argument(
