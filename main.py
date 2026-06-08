@@ -495,30 +495,50 @@ def main(args):
         ignore_label=metadata["ignore_label"],
         boundary_multiplier=args.boundary_multiplier,
     )
+    if args.lr_schedule == "cosine":
+        steps_per_epoch = int(np.ceil(len(x_train) / args.batch_size))
+        decay_steps = args.epochs * steps_per_epoch
+        lr_or_schedule = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=args.lr,
+            decay_steps=decay_steps,
+            alpha=1e-3,
+        )
+        callbacks = [
+            EarlyStopping(
+                monitor="val_accuracy",
+                mode="max",
+                patience=args.patience,
+                verbose=1,
+                restore_best_weights=True,
+            )
+        ]
+    else:
+        lr_or_schedule = args.lr
+        callbacks = [
+            EarlyStopping(
+                monitor="val_accuracy",
+                mode="max",
+                patience=args.patience,
+                verbose=1,
+                restore_best_weights=True,
+            ),
+            ReduceLROnPlateau(
+                monitor="val_accuracy",
+                mode="max",
+                factor=0.5,
+                patience=15,
+                verbose=1,
+                min_lr=1e-7,
+            ),
+        ]
+
     model.compile(
-        optimizer=Adam(learning_rate=args.lr),
+        optimizer=Adam(learning_rate=lr_or_schedule),
         loss=loss_fn,
         metrics=["accuracy"],
     )
 
     print("Starting training...")
-    callbacks = [
-        EarlyStopping(
-            monitor="val_accuracy",
-            mode="max",
-            patience=args.patience,
-            verbose=1,
-            restore_best_weights=True,
-        ),
-        ReduceLROnPlateau(
-            monitor="val_accuracy",
-            mode="max",
-            factor=0.5,
-            patience=15,
-            verbose=1,
-            min_lr=1e-7,
-        ),
-    ]
 
     history = model.fit(
         x_train,
@@ -609,5 +629,12 @@ if __name__ == "__main__":
         type=float,
         default=2.0,
         help="Weight multiplier for boundary pixels in focal loss (default: 2.0, set to 0.0 to disable)",
+    )
+    parser.add_argument(
+        "--lr_schedule",
+        type=str,
+        default="cosine",
+        choices=["cosine", "plateau"],
+        help="Learning rate schedule type (default: cosine)",
     )
     main(parser.parse_args())

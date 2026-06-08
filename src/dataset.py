@@ -208,6 +208,22 @@ def load_geotiff_data(
 
     image = np.moveaxis(image, 0, -1)
     image = _normalize_sentinel_image(image)
+
+    # Compute NDVI and NDWI on-the-fly (Level 1)
+    if image.shape[-1] >= 4:
+        eps = 1e-8
+        # NDVI: (NIR - Red) / (NIR + Red)
+        ndvi = (image[..., 3] - image[..., 2]) / (image[..., 3] + image[..., 2] + eps)
+        # NDWI: (Green - NIR) / (Green + NIR)
+        ndwi = (image[..., 1] - image[..., 3]) / (image[..., 1] + image[..., 3] + eps)
+        
+        # Normalize from [-1, 1] to [0, 1]
+        ndvi = np.clip((ndvi + 1.0) / 2.0, 0.0, 1.0)
+        ndwi = np.clip((ndwi + 1.0) / 2.0, 0.0, 1.0)
+        
+        # Append NDVI and NDWI as 5th and 6th channels
+        image = np.concatenate([image, ndvi[..., np.newaxis], ndwi[..., np.newaxis]], axis=-1)
+
     images, masks = _patch_arrays(
         image,
         mask,
