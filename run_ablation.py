@@ -4,9 +4,9 @@ Ablation Study Runner
 Runs 3 incremental model configurations and compiles a comparison summary.
 
 Configurations:
-  1. Baseline             — 4-Bands (RGB+NIR), standard Dice+Focal Loss, Cosine LR
-  2. Edge Loss            — 4-Bands (RGB+NIR), Boundary-Weighted Loss, Cosine LR
-  3. Full Model (proposed)— 6-Bands (RGB+NIR+NDVI+NDWI), Boundary-Weighted Loss, Cosine LR
+  1. Baseline              — 4-Bands (RGB+NIR), Dice+Focal Loss, Cosine LR
+  2. Baseline + NDVI/NDWI  — 6-Bands (RGB+NIR+NDVI+NDWI), Dice+Focal Loss, Cosine LR
+  3. Proposed (Full Model) — 6-Bands (RGB+NIR+NDVI+NDWI), Boundary-Weighted Loss, Cosine LR
 
 Usage:
     python run_ablation.py [--data_path dataset] [--epochs 200] [--batch_size 16] ...
@@ -35,16 +35,16 @@ ABLATION_CONFIGS = [
         ],
     },
     {
-        "name": "2_Edge_Loss",
-        "label": "Version 2 (Edge Loss)",
+        "name": "2_Baseline_NDVI",
+        "label": "Version 2 (Baseline + NDVI/NDWI)",
         "flags": [
-            "--no_ndvi",
+            "--boundary_multiplier", "0.0",
         ],
     },
     {
-        "name": "3_Full_Model",
-        "label": "Version 3 (Full Model)",
-        "flags": [],  # all features ON: NDVI/NDWI, boundary loss, cosine LR
+        "name": "3_Proposed",
+        "label": "Version 3 (Proposed)",
+        "flags": [],  # all features ON: NDVI/NDWI + boundary loss
     },
 ]
 
