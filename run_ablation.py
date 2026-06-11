@@ -4,16 +4,16 @@ Ablation Study Runner
 Runs 3 incremental model configurations and compiles a comparison summary.
 
 Configurations:
-  1. Residual Attention U-Net — attention ON, residual ON, no boundary loss, no NDVI/NDWI
-  2. Residual Attention U-Net + NDVI/NDWI — attention ON, residual ON, no boundary loss, NDVI/NDWI ON
-  3. Full Model (proposed)    — attention ON, residual ON, boundary loss ON, NDVI/NDWI ON
+  1. Baseline             — 4-Bands (RGB+NIR), standard Dice+Focal Loss, Plateau LR
+  2. Edge Loss            — 4-Bands (RGB+NIR), Boundary-Weighted Loss, Plateau LR
+  3. Full Model (proposed)— 6-Bands (RGB+NIR+NDVI+NDWI), Boundary-Weighted Loss, Cosine LR
 
 Usage:
     python run_ablation.py [--data_path dataset] [--epochs 200] [--batch_size 16] ...
 
 All arguments accepted by main.py are forwarded to each run (except the
-flags that the ablation controls: --disable_attention, --disable_residual,
---boundary_multiplier, --output_dir, --model_save_path, --no_ndvi).
+flags that the ablation controls: --boundary_multiplier, --output_dir,
+--model_save_path, --no_ndvi, --lr_schedule).
 """
 
 import argparse
@@ -27,24 +27,26 @@ from pathlib import Path
 # ── Ablation configurations ─────────────────────────────────────────────────
 ABLATION_CONFIGS = [
     {
-        "name": "1_Residual_Attention_UNet",
-        "label": "Residual Attention U-Net",
+        "name": "1_Baseline",
+        "label": "Version 1 (Baseline)",
         "flags": [
             "--boundary_multiplier", "0.0",
             "--no_ndvi",
+            "--lr_schedule", "plateau",
         ],
     },
     {
-        "name": "2_Residual_Attention_UNet_NDVI",
-        "label": "Residual Attention U-Net + NDVI/NDWI",
+        "name": "2_Edge_Loss",
+        "label": "Version 2 (Edge Loss)",
         "flags": [
-            "--boundary_multiplier", "0.0",
+            "--no_ndvi",
+            "--lr_schedule", "plateau",
         ],
     },
     {
         "name": "3_Full_Model",
-        "label": "Full Model (Proposed)",
-        "flags": [],  # all features ON, default boundary_multiplier=2.0
+        "label": "Version 3 (Full Model)",
+        "flags": [],  # all features ON: NDVI/NDWI, boundary loss, cosine LR
     },
 ]
 
@@ -322,7 +324,7 @@ if __name__ == "__main__":
     controlled = {
         "--disable_attention", "--disable_residual",
         "--boundary_multiplier", "--output_dir", "--model_save_path",
-        "--no_ndvi",
+        "--no_ndvi", "--lr_schedule",
     }
     cleaned = []
     skip_next = False
@@ -332,7 +334,7 @@ if __name__ == "__main__":
             continue
         if arg in controlled:
             # If it's a flag that takes a value, skip the next arg too
-            if arg in ("--boundary_multiplier", "--output_dir", "--model_save_path"):
+            if arg in ("--boundary_multiplier", "--output_dir", "--model_save_path", "--lr_schedule"):
                 skip_next = True
             continue
         cleaned.append(arg)
