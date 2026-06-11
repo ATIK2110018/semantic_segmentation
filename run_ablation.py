@@ -1,14 +1,12 @@
 """
 Ablation Study Runner
 =====================
-Runs 5 incremental model configurations and compiles a comparison summary.
+Runs 3 incremental model configurations and compiles a comparison summary.
 
 Configurations:
-  1. Plain U-Net              — no attention, no residual, no boundary loss
-  2. Attention U-Net          — attention ON, no residual, no boundary loss
-  3. Attention + Residual     — attention ON, residual ON, no boundary loss
-  4. Full Model w/o Indices   — attention ON, residual ON, boundary loss ON, no NDVI/NDWI
-  5. Full Model (proposed)    — attention ON, residual ON, boundary loss ON, NDVI/NDWI ON
+  1. Residual Attention U-Net — attention ON, residual ON, no boundary loss, no NDVI/NDWI
+  2. Residual Attention U-Net + NDVI/NDWI — attention ON, residual ON, no boundary loss, NDVI/NDWI ON
+  3. Full Model (proposed)    — attention ON, residual ON, boundary loss ON, NDVI/NDWI ON
 
 Usage:
     python run_ablation.py [--data_path dataset] [--epochs 200] [--batch_size 16] ...
@@ -29,41 +27,22 @@ from pathlib import Path
 # ── Ablation configurations ─────────────────────────────────────────────────
 ABLATION_CONFIGS = [
     {
-        "name": "1_Plain_UNet",
-        "label": "Plain U-Net",
-        "flags": [
-            "--disable_attention",
-            "--disable_residual",
-            "--boundary_multiplier", "0.0",
-            "--no_ndvi",
-        ],
-    },
-    {
-        "name": "2_Attention_UNet",
-        "label": "Attention U-Net",
-        "flags": [
-            "--disable_residual",
-            "--boundary_multiplier", "0.0",
-            "--no_ndvi",
-        ],
-    },
-    {
-        "name": "3_Attention_Residual_UNet",
-        "label": "Attention + Residual U-Net",
+        "name": "1_Residual_Attention_UNet",
+        "label": "Residual Attention U-Net",
         "flags": [
             "--boundary_multiplier", "0.0",
             "--no_ndvi",
         ],
     },
     {
-        "name": "4_Full_Without_Indices",
-        "label": "Full Model (w/o NDVI/NDWI)",
+        "name": "2_Residual_Attention_UNet_NDVI",
+        "label": "Residual Attention U-Net + NDVI/NDWI",
         "flags": [
-            "--no_ndvi",
+            "--boundary_multiplier", "0.0",
         ],
     },
     {
-        "name": "5_Full_Model",
+        "name": "3_Full_Model",
         "label": "Full Model (Proposed)",
         "flags": [],  # all features ON, default boundary_multiplier=2.0
     },
@@ -150,7 +129,6 @@ def run_ablation(common_args, base_output_dir="ablation_results"):
         run_name = config["name"]
         run_label = config["label"]
         run_output = os.path.join(base_output_dir, run_name)
-        model_path = os.path.join(run_output, "model.keras")
 
         print("\n" + "━" * 80)
         print(f"  RUN {i + 1}/{len(ABLATION_CONFIGS)}: {run_label}")
@@ -161,7 +139,7 @@ def run_ablation(common_args, base_output_dir="ablation_results"):
             sys.executable, "main.py",
             *common_args,
             "--output_dir", run_output,
-            "--model_save_path", model_path,
+            "--no_save_model",
             *config["flags"],
         ]
 
@@ -322,7 +300,7 @@ def run_ablation(common_args, base_output_dir="ablation_results"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Ablation Study Runner — runs 4 incremental configurations",
+        description="Ablation Study Runner — runs 3 incremental configurations",
         epilog=(
             "All other arguments are forwarded to main.py for each run.\n\n"
             "Example:\n"

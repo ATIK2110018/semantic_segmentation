@@ -576,8 +576,11 @@ def main(args):
         shuffle=True,
     )
 
-    model.save(args.model_save_path)
-    print(f"Model saved to {args.model_save_path}")
+    if not args.no_save_model:
+        model.save(args.model_save_path)
+        print(f"Model saved to {args.model_save_path}")
+    else:
+        print("Skipping model save (--no_save_model).")
 
     plot_history(history, save_path=os.path.join(args.output_dir, "training_history.png"))
 
@@ -667,5 +670,10 @@ if __name__ == "__main__":
         "--no_ndvi",
         action="store_true",
         help="Disable NDVI/NDWI index computation (use raw bands only)",
+    )
+    parser.add_argument(
+        "--no_save_model",
+        action="store_true",
+        help="Skip saving model.keras file (useful for ablation runs to save disk space)",
     )
     main(parser.parse_args())
