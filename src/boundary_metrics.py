@@ -1,62 +1,20 @@
-"""
-Boundary-Aware Evaluation Metrics for Semantic Segmentation
-============================================================
-Implements boundary region extraction via the morphological gradient operator
-and computes Boundary F1-score (BF-score) and Boundary IoU to assess
-segmentation quality near class interfaces.
-
-Reference methodology:
-    Boundary regions are delineated using the morphological gradient:
-        B(x) = dilate(x, k) - erode(x, k)
-    where k is a 3x3 structuring element. The resulting binary boundary
-    maps are used to compute pixel-level precision, recall, F1, and IoU
-    restricted to the boundary zone.
-"""
+"""Boundary-aware evaluation metrics for semantic segmentation."""
 
 import numpy as np
 import cv2
 
 
-# ---------------------------------------------------------------------------
-# Boundary extraction
-# ---------------------------------------------------------------------------
-
-def _extract_boundary_map(label_map: np.ndarray, kernel_size: int = 3) -> np.ndarray:
-    """Return a binary map of boundary pixels using the morphological gradient.
-
-    The morphological gradient is defined as:
-        grad(L) = dilate(L, k) - erode(L, k)
-
-    Applied per-class: a pixel is a boundary pixel if it lies on the
-    edge of *any* class region.
-
-    Args:
-        label_map: 2-D integer array of class labels (H x W).
-        kernel_size: Side length of the square structuring element.
-
-    Returns:
-        boundary: Boolean array (H x W). True at boundary pixels.
-    """
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT, (kernel_size, kernel_size)
-    )
+def _extract_boundary_map(label_map, kernel_size=3):
+    """Extract boundary pixels via morphological gradient."""
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     label_u8 = label_map.astype(np.uint8)
-
-    # Morphological gradient on the full label map captures all class edges
     dilated = cv2.dilate(label_u8, kernel)
     eroded = cv2.erode(label_u8, kernel)
     gradient = (dilated.astype(np.int32) - eroded.astype(np.int32)) != 0
     return gradient.astype(np.bool_)
 
 
-# ---------------------------------------------------------------------------
-# Per-image boundary metric helpers
-# ---------------------------------------------------------------------------
-
-def _boundary_confusion(
-    true_boundary: np.ndarray,
-    pred_boundary: np.ndarray,
-) -> tuple[int, int, int]:
+def _boundary_confusion(true_boundary, pred_boundary):
     """Return TP, FP, FN counts for binary boundary maps."""
     tp = int(np.logical_and(true_boundary, pred_boundary).sum())
     fp = int(np.logical_and(~true_boundary, pred_boundary).sum())
@@ -64,46 +22,11 @@ def _boundary_confusion(
     return tp, fp, fn
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+def compute_boundary_metrics(y_true_labels, y_pred_labels, kernel_size=3, batch_size=64):
+    """Compute global BF-score and Boundary IoU over the dataset."""
+    assert y_true_labels.shape == y_pred_labels.shape
 
-def compute_boundary_metrics(
-    y_true_labels: np.ndarray,
-    y_pred_labels: np.ndarray,
-    kernel_size: int = 3,
-    batch_size: int = 64,
-) -> dict:
-    """Compute Boundary F1-score (BF-score) and Boundary IoU over a dataset.
-
-    Boundary regions are extracted from *both* ground-truth and predicted
-    label maps using the morphological gradient. Metrics are accumulated
-    across all samples and reported globally.
-
-    Args:
-        y_true_labels: Integer label array of shape (N, H, W).
-        y_pred_labels: Integer label array of shape (N, H, W).
-        kernel_size: Structuring element size for morphological gradient.
-        batch_size: Processing batch size (controls print frequency).
-
-    Returns:
-        dict with keys:
-            boundary_precision  – TP / (TP + FP)
-            boundary_recall     – TP / (TP + FN)
-            bf_score            – harmonic mean of precision and recall
-            boundary_iou        – TP / (TP + FP + FN)
-            boundary_pixel_frac – fraction of pixels labelled as boundary
-                                  in ground truth (dataset-level)
-    """
-    assert y_true_labels.shape == y_pred_labels.shape, (
-        "y_true_labels and y_pred_labels must have the same shape."
-    )
-
-    total_tp = 0
-    total_fp = 0
-    total_fn = 0
-    total_boundary_px = 0
-    total_px = 0
+    total_tp = total_fp = total_fn = total_boundary_px = total_px = 0
     n = len(y_true_labels)
 
     for i in range(n):
@@ -123,47 +46,25 @@ def compute_boundary_metrics(
     print(f"  Boundary extraction: {n}/{n} — done.          ")
 
     precision = total_tp / (total_tp + total_fp + 1e-8)
-    recall    = total_tp / (total_tp + total_fn + 1e-8)
-    bf_score  = 2 * precision * recall / (precision + recall + 1e-8)
-    b_iou     = total_tp / (total_tp + total_fp + total_fn + 1e-8)
+    recall = total_tp / (total_tp + total_fn + 1e-8)
+    bf_score = 2 * precision * recall / (precision + recall + 1e-8)
+    b_iou = total_tp / (total_tp + total_fp + total_fn + 1e-8)
 
     return {
-        "boundary_precision":  float(precision),
-        "boundary_recall":     float(recall),
-        "bf_score":            float(bf_score),
-        "boundary_iou":        float(b_iou),
+        "boundary_precision": float(precision),
+        "boundary_recall": float(recall),
+        "bf_score": float(bf_score),
+        "boundary_iou": float(b_iou),
         "boundary_pixel_frac": float(total_boundary_px / (total_px + 1e-8)),
     }
 
 
 def compute_boundary_metrics_per_class(
-    y_true_labels: np.ndarray,
-    y_pred_labels: np.ndarray,
-    num_classes: int,
-    class_names: list[str] | None = None,
-    kernel_size: int = 3,
-) -> dict:
-    """Compute per-class boundary metrics.
-
-    For each class c, the boundary map is derived from the binary mask
-    (label == c), so boundaries are class-specific (inner edges of each
-    class region rather than all class transitions).
-
-    Args:
-        y_true_labels: Integer label array (N, H, W).
-        y_pred_labels: Integer label array (N, H, W).
-        num_classes: Total number of semantic classes.
-        class_names: Optional list of class name strings.
-        kernel_size: Structuring element size.
-
-    Returns:
-        dict mapping each class name to
-        {'precision', 'recall', 'bf_score', 'boundary_iou', 'support'}.
-    """
+    y_true_labels, y_pred_labels, num_classes, class_names=None, kernel_size=3
+):
+    """Compute per-class boundary precision, recall, BF-score, and IoU."""
     class_names = class_names or [f"Class {i}" for i in range(num_classes)]
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT, (kernel_size, kernel_size)
-    )
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     results = {}
 
     for c, name in enumerate(class_names):
@@ -188,47 +89,34 @@ def compute_boundary_metrics_per_class(
             support += int(true_bnd.sum())
 
         prec = tp / (tp + fp + 1e-8)
-        rec  = tp / (tp + fn + 1e-8)
-        f1   = 2 * prec * rec / (prec + rec + 1e-8)
-        iou  = tp / (tp + fp + fn + 1e-8)
+        rec = tp / (tp + fn + 1e-8)
+        f1 = 2 * prec * rec / (prec + rec + 1e-8)
+        iou = tp / (tp + fp + fn + 1e-8)
         results[name] = {
-            "precision":    float(prec),
-            "recall":       float(rec),
-            "bf_score":     float(f1),
+            "precision": float(prec),
+            "recall": float(rec),
+            "bf_score": float(f1),
             "boundary_iou": float(iou),
-            "support":      support,
+            "support": support,
         }
 
     return results
 
 
-# ---------------------------------------------------------------------------
-# Visualisation helper
-# ---------------------------------------------------------------------------
-
 def visualize_boundary_predictions(
-    images: np.ndarray,
-    y_true_labels: np.ndarray,
-    y_pred_labels: np.ndarray,
-    indices: list[int] | None = None,
-    num_samples: int = 6,
-    kernel_size: int = 3,
-    save_path: str = "boundary_predictions.png",
+    images,
+    y_true_labels,
+    y_pred_labels,
+    indices=None,
+    num_samples=6,
+    kernel_size=3,
+    save_path="boundary_predictions.png",
     display_fn=None,
-) -> None:
-    """Save a figure showing input / GT boundary / pred boundary overlays.
+):
+    """Save boundary visualization with color-coded correct/wrong predictions.
 
-    Each row: [Input image | GT boundary overlay | Pred boundary overlay]
-
-    Args:
-        images: Float image array (N, H, W, C).
-        y_true_labels: Integer label array (N, H, W).
-        y_pred_labels: Integer label array (N, H, W).
-        indices: Explicit sample indices to display (overrides num_samples).
-        num_samples: Number of random samples if indices is None.
-        kernel_size: Structuring element size for boundary extraction.
-        save_path: Output file path.
-        display_fn: Optional callable to convert an image patch to RGB uint8.
+    Colors: Green=correct(TP), Red=missed(FN), Yellow=false(FP).
+    Layout: [Input | GT Boundary | Pred Boundary (color-coded) | Error Map]
     """
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
@@ -237,13 +125,15 @@ def visualize_boundary_predictions(
         rng = np.random.default_rng(42)
         indices = rng.choice(len(images), min(num_samples, len(images)), replace=False).tolist()
 
+    COLOR_TP = np.array([0, 255, 0], dtype=np.uint8)
+    COLOR_FN = np.array([255, 50, 50], dtype=np.uint8)
+    COLOR_FP = np.array([255, 255, 0], dtype=np.uint8)
+    COLOR_GT = np.array([0, 255, 255], dtype=np.uint8)
+
     n = len(indices)
-    fig, axes = plt.subplots(n, 3, figsize=(15, 4.5 * n))
+    fig, axes = plt.subplots(n, 4, figsize=(20, 4.5 * n))
     if n == 1:
         axes = axes[np.newaxis, :]
-
-    col_titles = ["Input Image", "GT Boundary", "Pred Boundary"]
-    boundary_color = np.array([255, 50, 50], dtype=np.uint8)   # red overlay
 
     for row, idx in enumerate(indices):
         img = images[idx]
@@ -258,26 +148,43 @@ def visualize_boundary_predictions(
         true_bnd = _extract_boundary_map(y_true_labels[idx], kernel_size)
         pred_bnd = _extract_boundary_map(y_pred_labels[idx], kernel_size)
 
-        def _overlay(base_rgb, bnd_mask):
-            out = base_rgb.copy()
-            out[bnd_mask] = boundary_color
-            return out
+        tp_mask = np.logical_and(true_bnd, pred_bnd)
+        fn_mask = np.logical_and(true_bnd, ~pred_bnd)
+        fp_mask = np.logical_and(~true_bnd, pred_bnd)
 
-        gt_overlay   = _overlay(rgb, true_bnd)
-        pred_overlay = _overlay(rgb, pred_bnd)
+        # GT boundary overlay (cyan)
+        gt_overlay = rgb.copy()
+        gt_overlay[true_bnd] = COLOR_GT
 
-        for col, (title, data) in enumerate(
-            zip(col_titles, [rgb, gt_overlay, pred_overlay])
-        ):
+        # Pred boundary overlay (color-coded)
+        pred_overlay = rgb.copy()
+        pred_overlay[tp_mask] = COLOR_TP
+        pred_overlay[fn_mask] = COLOR_FN
+        pred_overlay[fp_mask] = COLOR_FP
+
+        # Error map (dark background, errors only)
+        error_map = np.zeros_like(rgb)
+        error_map[tp_mask] = COLOR_TP
+        error_map[fn_mask] = COLOR_FN
+        error_map[fp_mask] = COLOR_FP
+
+        col_data = [
+            (f"Input (#{idx})", rgb),
+            ("GT Boundary", gt_overlay),
+            ("Pred Boundary", pred_overlay),
+            ("Error Map", error_map),
+        ]
+        for col, (title, data) in enumerate(col_data):
             axes[row, col].imshow(data)
-            axes[row, col].set_title(
-                f"{title} (#{idx})" if col == 0 else title,
-                fontsize=11, fontweight="bold"
-            )
+            axes[row, col].set_title(title, fontsize=11, fontweight="bold")
             axes[row, col].axis("off")
 
-    patch = mpatches.Patch(color=(1.0, 50/255, 50/255), label="Boundary pixel")
-    fig.legend(handles=[patch], loc="lower center", ncol=1, fontsize=11, frameon=True)
+    legend_patches = [
+        mpatches.Patch(color=(0, 1, 0), label="Correct (TP)"),
+        mpatches.Patch(color=(1, 50 / 255, 50 / 255), label="Missed (FN)"),
+        mpatches.Patch(color=(1, 1, 0), label="False (FP)"),
+    ]
+    fig.legend(handles=legend_patches, loc="lower center", ncol=3, fontsize=11, frameon=True)
     plt.suptitle("Boundary Region Predictions", fontsize=15, fontweight="bold", y=1.002)
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
@@ -285,18 +192,8 @@ def visualize_boundary_predictions(
     print(f"Saved: {save_path}")
 
 
-def plot_boundary_metrics_chart(
-    per_class_boundary: dict,
-    class_colors: list[str],
-    save_path: str = "boundary_metrics_chart.png",
-) -> None:
-    """Save a grouped bar chart of per-class boundary metrics.
-
-    Args:
-        per_class_boundary: Output of compute_boundary_metrics_per_class().
-        class_colors: List of hex color strings for each class bar.
-        save_path: Output file path.
-    """
+def plot_boundary_metrics_chart(per_class_boundary, class_colors, save_path="boundary_metrics_chart.png"):
+    """Save grouped bar chart of per-class boundary metrics."""
     import matplotlib.pyplot as plt
 
     class_names = list(per_class_boundary.keys())
@@ -305,8 +202,8 @@ def plot_boundary_metrics_chart(
     width = 0.22
 
     metrics_keys = ["precision", "recall", "bf_score", "boundary_iou"]
-    labels       = ["Precision", "Recall", "BF-score", "Boundary IoU"]
-    bar_colors   = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63"]
+    labels = ["Precision", "Recall", "BF-score", "Boundary IoU"]
+    bar_colors = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63"]
 
     fig, ax = plt.subplots(figsize=(max(12, n * 1.4), 7))
     for j, (key, label, color) in enumerate(zip(metrics_keys, labels, bar_colors)):

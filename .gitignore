@@ -12,6 +12,7 @@ models/
 
 # Results / outputs
 results/
+ablation_results/
 *.png
 *.npy
 

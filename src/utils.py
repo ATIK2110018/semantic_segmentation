@@ -4,7 +4,7 @@ import tensorflow.keras.backend as K
 
 
 def calculate_class_weights(labels, num_classes=None, ignore_label=None):
-    """Calculate inverse-frequency class weights for one-hot segmentation loss."""
+    """Calculate inverse-frequency class weights."""
     if num_classes is None:
         num_classes = int(np.max(labels)) + 1
 
@@ -33,7 +33,7 @@ def jacard_coef(y_true, y_pred):
 
 
 def get_masked_loss(class_weights, ignore_label=None, boundary_multiplier=2.0):
-    """Return native TensorFlow Dice + Focal loss with optional ignored label masking and boundary weighting."""
+    """Dice + Focal loss with optional ignore masking and boundary weighting."""
     class_weights_tf = tf.constant(class_weights, dtype=tf.float32)
 
     def total_loss(y_true, y_pred):
@@ -49,27 +49,11 @@ def get_masked_loss(class_weights, ignore_label=None, boundary_multiplier=2.0):
         pt = tf.reduce_sum(y_true * y_pred, axis=-1)
         focal = tf.pow(1.0 - pt, 2.0) * categorical_ce * pixel_weights
 
-        # Boundary-weighted loss component (Path A)
         if boundary_multiplier > 0.0:
-            # Dilation: Max pooling with 3x3 kernel on one-hot targets
-            dilation = tf.nn.max_pool2d(
-                y_true,
-                ksize=3,
-                strides=1,
-                padding="SAME"
-            )
-            # Erosion: 1.0 - Max pooling of (1.0 - one-hot targets)
-            erosion = 1.0 - tf.nn.max_pool2d(
-                1.0 - y_true,
-                ksize=3,
-                strides=1,
-                padding="SAME"
-            )
-            # Boundary map (1.0 at class transitions, 0.0 elsewhere)
+            dilation = tf.nn.max_pool2d(y_true, ksize=3, strides=1, padding="SAME")
+            erosion = 1.0 - tf.nn.max_pool2d(1.0 - y_true, ksize=3, strides=1, padding="SAME")
             boundary_per_class = dilation - erosion
-            boundary_map = tf.reduce_max(boundary_per_class, axis=-1)  # shape: (B, H, W)
-            
-            # Apply boundary multiplier to focus loss on edges
+            boundary_map = tf.reduce_max(boundary_per_class, axis=-1)
             boundary_weight = 1.0 + boundary_multiplier * boundary_map
             focal = focal * boundary_weight
 
@@ -117,7 +101,7 @@ def plot_history(history, save_path="training_history.png"):
 
 
 def display_image(image):
-    """Return RGB channels suitable for matplotlib from RGB or Sentinel-2 B2/B3/B4/B8."""
+    """Return RGB channels for matplotlib display."""
     if image.shape[-1] >= 4:
         rgb = image[..., [2, 1, 0]]
     else:
@@ -125,16 +109,8 @@ def display_image(image):
     return np.clip(rgb, 0.0, 1.0)
 
 
-def visualize_prediction(
-    model,
-    x_test,
-    y_test,
-    num_samples=5,
-    save_path="predictions.png",
-    cmap=None,
-    class_count=None,
-):
-    """Visualize predictions on random test samples and save to file."""
+def visualize_prediction(model, x_test, y_test, num_samples=5, save_path="predictions.png", cmap=None, class_count=None):
+    """Visualize predictions on random test samples."""
     import matplotlib.pyplot as plt
 
     class_count = class_count or y_test.shape[-1]
@@ -167,7 +143,7 @@ def visualize_prediction(
 
 
 def evaluate_model_metrics(model, x_test, y_test, batch_size=16, class_names=None):
-    """Calculate confusion matrix and per-class metrics efficiently in batches."""
+    """Calculate confusion matrix and per-class metrics in batches."""
     from sklearn.metrics import confusion_matrix
 
     num_classes = y_test.shape[-1]

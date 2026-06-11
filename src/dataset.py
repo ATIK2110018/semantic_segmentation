@@ -149,13 +149,7 @@ def _find_tif(data_path, include_terms, exclude_terms=()):
 
 
 def _normalize_sentinel_image(image):
-    """
-    Normalize Sentinel-2 channels into [0, 1].
-
-    Handles both:
-    - reflectance-like exports already in [0, 1]
-    - scaled integer exports (commonly [0, 10000])
-    """
+    """Normalize Sentinel-2 channels into [0, 1]."""
     image = image.astype(np.float32)
     finite = np.isfinite(image)
     if not finite.any():
@@ -177,6 +171,7 @@ def load_geotiff_data(
     valid_pixel_threshold=0.5,
     image_tif=None,
     mask_tif=None,
+    compute_indices=True,
 ):
     """Load Sentinel-2 image and ESRI LULC mask GeoTIFFs exported from GEE."""
     image_path = Path(image_tif) if image_tif else _find_tif(data_path, ("sentinel2",), ("mask", "lulc"))
@@ -209,19 +204,12 @@ def load_geotiff_data(
     image = np.moveaxis(image, 0, -1)
     image = _normalize_sentinel_image(image)
 
-    # Compute NDVI and NDWI on-the-fly (Level 1)
-    if image.shape[-1] >= 4:
+    if compute_indices and image.shape[-1] >= 4:
         eps = 1e-8
-        # NDVI: (NIR - Red) / (NIR + Red)
         ndvi = (image[..., 3] - image[..., 2]) / (image[..., 3] + image[..., 2] + eps)
-        # NDWI: (Green - NIR) / (Green + NIR)
         ndwi = (image[..., 1] - image[..., 3]) / (image[..., 1] + image[..., 3] + eps)
-        
-        # Normalize from [-1, 1] to [0, 1]
         ndvi = np.clip((ndvi + 1.0) / 2.0, 0.0, 1.0)
         ndwi = np.clip((ndwi + 1.0) / 2.0, 0.0, 1.0)
-        
-        # Append NDVI and NDWI as 5th and 6th channels
         image = np.concatenate([image, ndvi[..., np.newaxis], ndwi[..., np.newaxis]], axis=-1)
 
     images, masks = _patch_arrays(
@@ -250,6 +238,7 @@ def load_data(
     valid_pixel_threshold=0.5,
     image_tif=None,
     mask_tif=None,
+    compute_indices=True,
 ):
     """Auto-detect and load either the GeoTIFF dataset or original aerial dataset."""
     has_tifs = any(Path(data_path).rglob("*.tif")) or any(Path(data_path).rglob("*.tiff"))
@@ -261,6 +250,7 @@ def load_data(
             valid_pixel_threshold,
             image_tif=image_tif,
             mask_tif=mask_tif,
+            compute_indices=compute_indices,
         )
     return load_aerial_data(data_path, patch_size, step)
 
@@ -275,6 +265,7 @@ def prepare_dataset(
     image_tif=None,
     mask_tif=None,
     return_metadata=False,
+    compute_indices=True,
 ):
     """Load, one-hot encode, and split the dataset into train/test sets."""
     from tensorflow.keras.utils import to_categorical
@@ -287,6 +278,7 @@ def prepare_dataset(
         valid_pixel_threshold,
         image_tif=image_tif,
         mask_tif=mask_tif,
+        compute_indices=compute_indices,
     )
     if len(x) == 0:
         raise ValueError("No valid image/mask patches were created from the dataset.")

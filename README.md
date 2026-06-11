@@ -1,30 +1,31 @@
 # Semantic Segmentation with Residual Attention U-Net
 
-This project implements a **Residual Attention U-Net** for semantic segmentation of aerial imagery using the [Humans in the Loop](https://humansintheloop.org/) dataset. The model combines residual connections and attention gates within a U-Net architecture, trained with a combined Dice + Focal loss.
+A **Residual Attention U-Net** for semantic segmentation of satellite imagery using Sentinel-2 multispectral data and ESRI LULC labels. The model incrementally combines residual connections, attention gates, boundary-weighted loss, and spectral indices (NDVI/NDWI), trained with a combined Dice + Focal loss.
 
 ## Features
-- **Residual Attention U-Net**: Residual connections inside conv blocks for gradient flow + spatial attention gates on skip connections to refine features.
-- **6-Channel Feature Fusion**: Appends on-the-fly NDVI (Vegetation Index) and NDWI (Water Index) to RGB + NIR bands, feeding the model with explicit land-cover priors.
-- **Boundary-Weighted Focal Loss**: Utilizes dynamic morphological edge extraction during backpropagation using 2D Max Pooling to scale the Focal Loss for border pixels by 3x.
-- **Automated Patching**: Handles large satellite GeoTIFFs by patchifying them into 256×256 segments.
-- **Built-in Evaluation**: Per-class metrics, confusion matrices, 4-column predictions (RGB, NDVI, GT, Pred), and boundary overlays — generated automatically after training.
-- **Flexible Optimization Schedules**: Supports continuous Cosine Annealing decay and validation-plateau learning rate schedules.
-- **Ablation Study Support**: Toggle residual/attention components via CLI flags.
+- **Residual Attention U-Net** — residual connections for gradient flow + attention gates on skip connections
+- **6-Channel Feature Fusion** — on-the-fly NDVI and NDWI appended to B2/B3/B4/B8 bands
+- **Boundary-Weighted Focal Loss** — morphological edge extraction scales loss at class boundaries
+- **Automated Patching** — handles large GeoTIFFs by patchifying into 256×256 segments
+- **Full Evaluation Pipeline** — per-class metrics, confusion matrices, color-coded boundary predictions
+- **Ablation Study Runner** — automated 5-configuration ablation with comparison table
+- **Flexible LR Schedules** — Cosine Annealing or validation-plateau decay
 
 ## Project Structure
 ```
 .
+├── main.py                 # Training + evaluation pipeline
+├── run_ablation.py         # Automated 5-run ablation study
 ├── src/
 │   ├── model.py            # Residual Attention U-Net architecture
-│   ├── dataset.py          # Data loading, patching, and preprocessing
-│   └── utils.py            # Loss functions, metrics, and visualization helpers
-├── main.py                 # Training + full evaluation pipeline
-├── dataset/                # GeoTIFF dataset directory
+│   ├── dataset.py          # Data loading, patching, preprocessing
+│   ├── utils.py            # Loss functions, metrics, visualization
+│   └── boundary_metrics.py # Boundary-aware evaluation + color-coded viz
+├── dataset/
 │   ├── sylhet_sentinel2_30m_2023.tif
 │   └── sylhet_esri_lulc_30m_mask_2023.tif
-├── models/                 # Saved model weights (.keras)
-├── results/                # Evaluation outputs (plots, CSV, confusion matrix)
-└── requirements.txt        # Dependencies
+├── requirements.txt
+└── README.md
 ```
 
 ## Installation
@@ -34,137 +35,133 @@ pip install -r requirements.txt
 ```
 
 ### Hardware Requirements
-- **GPU recommended**: Default config (`--batch_size 16`) is optimized for GPUs with at least 8GB VRAM.
-- **CPU fallback**: Reduce `--batch_size` to 4 or increase `--patch_step` if running locally without a GPU.
+- **GPU recommended**: `--batch_size 16` needs ~8GB VRAM
+- **CPU fallback**: reduce `--batch_size` to 4
 
 ## Usage
 
-### Training + Evaluation (single run)
+### Training + Evaluation
 
-Training automatically runs full evaluation after completion.
+```bash
+python main.py --data_path dataset --output_dir results
+```
 
-**Sentinel-2 + ESRI LULC GeoTIFFs (using the `dataset/` folder):**
+With explicit GeoTIFF paths:
 ```bash
 python main.py \
-  --data_path dataset \
-  --patch_step 160 \
-  --output_dir results/sentinel_esri
+  --image_tif dataset/sylhet_sentinel2_30m_2023.tif \
+  --mask_tif dataset/sylhet_esri_lulc_30m_mask_2023.tif \
+  --output_dir results
 ```
-
-**Local (if using original aerial imagery dataset):**
-```bash
-python main.py --data_path "Semantic segmentation dataset" --output_dir results/aerial_imagery
-```
-
-**Kaggle:** See the [Kaggle Deployment](#kaggle-deployment) section below.
 
 ### Ablation Study
 
-Run each variant to compare the contribution of Residual and Attention components:
+Run all 5 configurations automatically:
 
-**1. Full Model (Residual + Attention):**
 ```bash
-python main.py \
-  --model_save_path models/residual_attention_unet.keras \
-  --output_dir results/full_model
+python run_ablation.py --data_path dataset --epochs 200 --batch_size 16
 ```
 
-**2. Residual Only (no attention):**
-```bash
-python main.py --disable_attention \
-  --model_save_path models/residual_only_unet.keras \
-  --output_dir results/residual_only
+This runs the following configurations sequentially and produces a comparison table:
+
+| Run | Model | Attention | Residual | Boundary Loss | NDVI/NDWI |
+|:---:|---|:---:|:---:|:---:|:---:|
+| 1 | Plain U-Net | ❌ | ❌ | ❌ | ❌ |
+| 2 | Attention U-Net | ✅ | ❌ | ❌ | ❌ |
+| 3 | Attention + Residual U-Net | ✅ | ✅ | ❌ | ❌ |
+| 4 | Full Model (w/o NDVI/NDWI) | ✅ | ✅ | ✅ | ❌ |
+| 5 | **Full Model (Proposed)** | ✅ | ✅ | ✅ | ✅ |
+
+Output structure:
+```
+ablation_results/
+├── 1_Plain_UNet/
+├── 2_Attention_UNet/
+├── 3_Attention_Residual_UNet/
+├── 4_Full_Without_Indices/
+├── 5_Full_Model/
+└── ablation_comparison.csv     # Side-by-side metric comparison
 ```
 
-**3. Attention Only (no residual):**
-```bash
-python main.py --disable_residual \
-  --model_save_path models/attention_only_unet.keras \
-  --output_dir results/attention_only
-```
+### Manual Ablation (individual runs)
 
-**4. Base U-Net (no residual, no attention):**
 ```bash
-python main.py --disable_attention --disable_residual \
-  --model_save_path models/base_unet.keras \
-  --output_dir results/base_unet
+# Plain U-Net
+python main.py --disable_attention --disable_residual --boundary_multiplier 0.0 --no_ndvi \
+  --output_dir results/plain_unet
+
+# Full model
+python main.py --output_dir results/full_model
 ```
 
 ### Evaluation Outputs
 
-After each run, the `--output_dir` will contain:
+Each run produces the following in `--output_dir`:
 
 | File | Description |
 |---|---|
-| `evaluation_results.csv` | Per-class IoU, Precision, Recall, F1, Accuracy + summary metrics |
+| `evaluation_results.csv` | Per-class IoU, Precision, Recall, F1, Accuracy + summary |
 | `confusion_matrix.png` | Heatmap (raw counts + normalized %) |
 | `per_class_iou.png` | Per-class IoU bar chart with mean IoU lines |
 | `all_metrics_chart.png` | Grouped bar chart (IoU, Precision, Recall, F1) |
-| `predictions.png` | 5 samples: Input RGB → NDVI Index → Ground Truth → Prediction |
-| `training_history.png` | Loss and IoU curves over epochs |
-| `class_legend.png` | Color legend for the 6 segmentation classes |
-| `boundary_results_global.csv` | Global BF-score, Boundary IoU, Boundary Precision/Recall |
-| `boundary_results_per_class.csv` | Per-class boundary metrics (BF-score, Boundary IoU, etc.) |
-| `boundary_predictions.png` | 6 samples: Input → GT boundary overlay → Pred boundary overlay |
-| `boundary_metrics_chart.png` | Grouped bar chart of per-class boundary metrics |
+| `predictions.png` | Samples: Input → NDVI → Ground Truth → Prediction |
+| `training_history.png` | Loss and accuracy curves |
+| `class_legend.png` | Color legend for segmentation classes |
+| `boundary_results_global.csv` | Global BF-score, Boundary IoU |
+| `boundary_results_per_class.csv` | Per-class boundary metrics |
+| `boundary_predictions.png` | Color-coded boundary predictions (see below) |
+| `boundary_metrics_chart.png` | Per-class boundary metrics bar chart |
 
-### Parameters
+### Boundary Prediction Visualization
+
+The boundary prediction figure uses a 4-column layout with color-coded correctness:
+
+| Column | Content |
+|---|---|
+| Input | RGB composite |
+| GT Boundary | Ground truth boundaries in **cyan** |
+| Pred Boundary | 🟢 **Green** = Correct (TP), 🔴 **Red** = Missed (FN), 🟡 **Yellow** = False (FP) |
+| Error Map | Errors only on dark background |
+
+## Parameters
 
 | Argument | Default | Description |
 |---|---|---|
 | `--data_path` | `dataset` | Path to dataset directory |
-| `--image_tif` | `None` | Optional Sentinel-2 GeoTIFF path (overrides auto-detection) |
-| `--mask_tif` | `None` | Optional ESRI LULC mask GeoTIFF path (overrides auto-detection) |
+| `--image_tif` | `None` | Sentinel-2 GeoTIFF path (overrides auto-detection) |
+| `--mask_tif` | `None` | ESRI LULC mask GeoTIFF path (overrides auto-detection) |
 | `--patch_size` | `256` | Patch dimensions (square) |
-| `--patch_step` | `256` | Step size for patching (use < patch_size for overlap) |
+| `--patch_step` | `256` | Step size for patching (< patch_size for overlap) |
 | `--epochs` | `200` | Max training epochs |
 | `--batch_size` | `16` | Training batch size |
 | `--lr` | `1e-4` | Initial learning rate |
 | `--patience` | `30` | Early stopping patience |
 | `--model_save_path` | `model.keras` | Path to save trained model |
 | `--output_dir` | `results` | Directory for evaluation outputs |
-| `--num_samples` | `5` | Number of prediction samples to visualize |
-| `--disable_attention` | `false` | Disable attention gates (ablation) |
-| `--disable_residual` | `false` | Disable residual connections (ablation) |
-| `--boundary_kernel_size` | `3` | Structuring element size for morphological gradient boundary extraction |
-| `--boundary_multiplier` | `2.0` | Weight multiplier for boundary pixels in focal loss (set to 0.0 to disable) |
-| `--lr_schedule` | `cosine` | Learning rate schedule type (`cosine` or `plateau`) |
+| `--num_samples` | `5` | Prediction samples to visualize |
+| `--disable_attention` | `false` | Disable attention gates |
+| `--disable_residual` | `false` | Disable residual connections |
+| `--boundary_kernel_size` | `3` | Morphological gradient kernel size |
+| `--boundary_multiplier` | `2.0` | Boundary pixel loss weight (0.0 to disable) |
+| `--lr_schedule` | `cosine` | LR schedule: `cosine` or `plateau` |
+| `--no_ndvi` | `false` | Disable NDVI/NDWI index computation |
 
 ## Boundary-Aware Evaluation
 
-Conventional pixel-level metrics (IoU, F1) do not adequately capture segmentation quality at class boundaries — particularly for thin features such as roads, water channels, and field edges. This project introduces a complementary **boundary-aware evaluation framework** to address this gap.
-
-### Method
-
-Boundary regions are extracted from both the ground-truth and predicted label maps using the **morphological gradient operator**:
+Boundary regions are extracted using the **morphological gradient**:
 
 ```
-B(L) = dilate(L, k) ⊖ erode(L, k)
+B(L) = dilate(L, k) − erode(L, k)
 ```
-
-where `k` is a square structuring element of size `--boundary_kernel_size` (default 3×3). The resulting binary boundary maps are used to compute pixel-level statistics restricted to the boundary zone.
-
-### Metrics
 
 | Metric | Formula | Description |
 |---|---|---|
-| **Boundary Precision** | TP / (TP + FP) | Fraction of predicted boundary pixels that are true boundaries |
-| **Boundary Recall** | TP / (TP + FN) | Fraction of true boundary pixels that are correctly predicted |
-| **BF-score** | 2 · P · R / (P + R) | Harmonic mean of boundary precision and recall |
-| **Boundary IoU** | TP / (TP + FP + FN) | Intersection-over-Union restricted to boundary pixels |
-
-### Outputs
-
-After training, the following boundary evaluation files are written to `--output_dir`:
-
-- `boundary_results_global.csv` — global BF-score and Boundary IoU
-- `boundary_results_per_class.csv` — per-class breakdown
-- `boundary_predictions.png` — visual overlays of boundary regions
-- `boundary_metrics_chart.png` — grouped bar chart of per-class boundary metrics
+| **Boundary Precision** | TP / (TP + FP) | Predicted boundary pixels that are true boundaries |
+| **Boundary Recall** | TP / (TP + FN) | True boundary pixels correctly predicted |
+| **BF-score** | 2·P·R / (P+R) | Harmonic mean of boundary precision and recall |
+| **Boundary IoU** | TP / (TP+FP+FN) | IoU restricted to boundary pixels |
 
 ## Classes (ESRI LULC)
-
-The GeoTIFF dataset uses ESRI Land Use / Land Cover classes:
 
 | ID | Class | Color |
 |---|---|---|
@@ -180,42 +177,19 @@ The GeoTIFF dataset uses ESRI Land Use / Land Cover classes:
 
 ## Kaggle Deployment
 
-### Step 1 — Push to GitHub
-
-Make sure your dataset TIF files and notebook are committed:
-```bash
-git add .
-git commit -m "Add 30m GeoTIFF dataset and Kaggle notebook"
-git push origin main
-```
-
-### Step 2 — Create a Kaggle Notebook
-
-1. Go to [kaggle.com/code](https://www.kaggle.com/code) → **New Notebook**
-2. Set **Accelerator → GPU T4 x2** (Settings panel on the right)
-3. Enable **Internet** (Settings → Internet → On)
-4. Import `kaggle_notebook.ipynb` from this repo (File → Import Notebook → GitHub URL)
-   - Or copy-paste the notebook cells manually
-
-### Step 3 — Set Your Repo URL & Run
-
-In **Cell 1** of the notebook, set:
-```python
-GITHUB_REPO_URL = "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git"
-```
-Then **Run All** — training will stream live output directly in the notebook.
-
-### Kaggle Training Parameters
+1. Push repo to GitHub
+2. Create a Kaggle Notebook → set **GPU T4 x2** + **Internet ON**
+3. Import notebook and set your repo URL:
+   ```python
+   GITHUB_REPO_URL = "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git"
+   ```
+4. **Run All** — results save to `/kaggle/working/results/`
 
 | Parameter | Value | Notes |
 |---|---|---|
-| `--patch_size` | `256` | Full resolution patches |
 | `--patch_step` | `128` | 50% overlap for more samples |
-| `--batch_size` | `16` | Safe for 16 GB T4/P100 VRAM |
+| `--batch_size` | `16` | Safe for 16GB T4/P100 VRAM |
 | `--epochs` | `200` | With early stopping (patience=30) |
-| `--lr` | `1e-4` | Adam optimizer |
-
-Outputs are saved to `/kaggle/working/results/30m_full_model/` and displayed inline after training.
 
 ## Acknowledgments
 - [Sentinel-2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) — multispectral satellite imagery

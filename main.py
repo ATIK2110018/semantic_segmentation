@@ -257,7 +257,6 @@ def full_evaluation(
     np.random.seed(42)
     indices = np.random.choice(len(x_test), sample_count, replace=False)
     
-    # Determine columns based on NDVI channel presence (Level 1)
     has_ndvi = x_test.shape[-1] >= 5
     num_cols = 4 if has_ndvi else 3
     
@@ -272,39 +271,33 @@ def full_evaluation(
             model.predict(np.expand_dims(test_img, 0), verbose=0)[0], axis=-1
         )
         
-        # Column 0: RGB Input
         axes[i, 0].imshow(display_image(test_img))
         axes[i, 0].set_title(f"Input Image (#{idx})", fontsize=12, fontweight="bold")
         axes[i, 0].axis("off")
         
         if has_ndvi:
-            # Column 1: NDVI (Index 4)
             axes[i, 1].imshow(test_img[..., 4], cmap="RdYlGn", vmin=0.0, vmax=1.0)
             axes[i, 1].set_title("NDVI Index", fontsize=12, fontweight="bold")
             axes[i, 1].axis("off")
             
-            # Column 2: Ground Truth
             axes[i, 2].imshow(
                 true_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
             )
             axes[i, 2].set_title("Ground Truth", fontsize=12, fontweight="bold")
             axes[i, 2].axis("off")
             
-            # Column 3: Prediction
             axes[i, 3].imshow(
                 pred_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
             )
             axes[i, 3].set_title("Prediction", fontsize=12, fontweight="bold")
             axes[i, 3].axis("off")
         else:
-            # Column 1: Ground Truth (without NDVI)
             axes[i, 1].imshow(
                 true_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
             )
             axes[i, 1].set_title("Ground Truth", fontsize=12, fontweight="bold")
             axes[i, 1].axis("off")
             
-            # Column 2: Prediction (without NDVI)
             axes[i, 2].imshow(
                 pred_mask, cmap=custom_cmap, vmin=0, vmax=num_classes - 1, interpolation="nearest"
             )
@@ -490,6 +483,7 @@ def main(args):
         image_tif=args.image_tif,
         mask_tif=args.mask_tif,
         return_metadata=True,
+        compute_indices=not args.no_ndvi,
     )
     class_names = metadata["class_names"][:n_classes]
     class_colors = metadata["class_colors"][:n_classes]
@@ -668,5 +662,10 @@ if __name__ == "__main__":
         default="cosine",
         choices=["cosine", "plateau"],
         help="Learning rate schedule type (default: cosine)",
+    )
+    parser.add_argument(
+        "--no_ndvi",
+        action="store_true",
+        help="Disable NDVI/NDWI index computation (use raw bands only)",
     )
     main(parser.parse_args())
