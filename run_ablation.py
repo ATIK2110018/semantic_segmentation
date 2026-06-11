@@ -4,8 +4,8 @@ Ablation Study Runner
 Runs 3 incremental model configurations and compiles a comparison summary.
 
 Configurations:
-  1. Baseline             — 4-Bands (RGB+NIR), standard Dice+Focal Loss, Plateau LR
-  2. Edge Loss            — 4-Bands (RGB+NIR), Boundary-Weighted Loss, Plateau LR
+  1. Baseline             — 4-Bands (RGB+NIR), standard Dice+Focal Loss, Cosine LR
+  2. Edge Loss            — 4-Bands (RGB+NIR), Boundary-Weighted Loss, Cosine LR
   3. Full Model (proposed)— 6-Bands (RGB+NIR+NDVI+NDWI), Boundary-Weighted Loss, Cosine LR
 
 Usage:
@@ -32,7 +32,6 @@ ABLATION_CONFIGS = [
         "flags": [
             "--boundary_multiplier", "0.0",
             "--no_ndvi",
-            "--lr_schedule", "plateau",
         ],
     },
     {
@@ -40,7 +39,6 @@ ABLATION_CONFIGS = [
         "label": "Version 2 (Edge Loss)",
         "flags": [
             "--no_ndvi",
-            "--lr_schedule", "plateau",
         ],
     },
     {
