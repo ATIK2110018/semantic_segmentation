@@ -465,13 +465,8 @@ def boundary_evaluation(
 
 
 def main(args):
-    # Set random seed for complete reproducibility
+    # Set random seed for weight initialization reproducibility (fast 8s/epoch training)
     tf.keras.utils.set_random_seed(args.seed)
-    try:
-        tf.config.experimental.enable_op_determinism()
-        print(f"Enabled TensorFlow op determinism with seed {args.seed}")
-    except Exception as e:
-        print(f"Could not enable op determinism: {e}. Seed {args.seed} is still set.")
 
     os.makedirs(args.output_dir, exist_ok=True)
 
