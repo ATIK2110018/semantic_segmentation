@@ -1,6 +1,6 @@
-# Semantic Segmentation with Residual Attention U-Net
+# Boundary Aware Residual Attention UNet for Satellite Image Segmentation
 
-A **Residual Attention U-Net** for semantic segmentation of satellite imagery using Sentinel-2 multispectral data and ESRI LULC labels. The model incrementally combines residual connections, attention gates, boundary-weighted loss, and spectral indices (NDVI/NDWI), trained with a combined Dice + Focal loss.
+A **Residual Attention U-Net** for semantic segmentation of Sentinel-2 satellite imagery over Sylhet, Bangladesh. The model classifies 7 LULC classes using residual connections, attention gates, NDVI/NDWI spectral index fusion, and a morphological boundary-weighted Dice + Focal loss. Snow/Ice and Clouds are excluded as they are absent in the Sylhet study area.
 
 ## Features
 - **Residual Attention U-Net** — residual connections for gradient flow + attention gates on skip connections
@@ -85,11 +85,13 @@ The final results of the ablation study (trained on Kaggle GPU T4 for 200 epochs
 
 #### Global Performance Comparison
 
-| Configuration | Overall Accuracy | Mean IoU | Weighted IoU | Mean F1 | BF Score (Edge F1) | Boundary IoU | Duration (s) |
+| Configuration | Overall Accuracy | Mean IoU (7 classes) | Weighted IoU | Mean F1 | BF Score (Edge F1) | Boundary IoU | Duration (s) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Version 1 (Baseline)** | 90.13% | 52.67% | 82.98% | 61.70% | 0.5975 | 42.60% | 1903.4 |
-| **Version 2 (Baseline + NDVI/NDWI)** | 90.29% | 53.98% | 83.15% | 62.73% | 0.6000 | 42.85% | 1847.7 |
-| **Version 3 (Proposed)** | **90.53%** | **55.51%** | **83.71%** | **63.96%** | **0.6358** | **46.61%** | 1939.8 |
+| **Version 1 (Baseline)** | 90.13% | 67.72% | 82.98% | 61.70% | 0.5975 | 42.60% | 1903.4 |
+| **Version 2 (Baseline + NDVI/NDWI)** | 90.29% | — | 83.15% | 62.73% | 0.6000 | 42.85% | 1847.7 |
+| **Version 3 (Proposed)** | **90.53%** | **71.37%** | **83.71%** | **63.96%** | **0.6358** | **46.61%** | 1939.8 |
+
+> **Note:** Mean IoU is computed over the 7 active classes only (Snow/Ice and Clouds excluded — both absent in Sylhet).
 
 *Key Insight:* Moving from V1 to V3 yields a net improvement of **+2.84% Mean IoU**, **+3.83% BF Score**, and **+4.00% Boundary IoU**, demonstrating the compounding benefits of multi-spectral index fusion and morphological edge-weighted loss.
 
@@ -103,11 +105,7 @@ The final results of the ablation study (trained on Kaggle GPU T4 for 200 epochs
 | **Crops** | 87.84% | 87.82% | **87.96%** | +0.12% |
 | **Built Area** | 54.94% | 53.48% | **55.03%** | +0.09% |
 | **Bare Ground** | 79.04% | 83.13% | **84.78%** | **+5.75%** |
-| **Snow/Ice** | 0.00% | 0.00% | 0.00% | 0.00% |
-| **Clouds** | 0.00% | 0.00% | 0.00% | 0.00% |
 | **Rangeland** | 47.33% | 50.41% | **55.46%** | **+8.13%** |
-
-*Note:* `Snow/Ice` and `Clouds` have 0.0% IoU because there are no matching ground-truth pixels for these classes in the training/validation dataset split.
 
 ### Manual Ablation (individual runs)
 
@@ -191,17 +189,19 @@ B(L) = dilate(L, k) − erode(L, k)
 
 ## Classes (ESRI LULC)
 
-| ID | Class | Color |
-|---|---|---|
-| 1 | Water | ![#1A5BAB](https://via.placeholder.com/15/1A5BAB/1A5BAB.png) Blue |
-| 2 | Trees | ![#358221](https://via.placeholder.com/15/358221/358221.png) Green |
-| 3 | Flooded Vegetation | ![#87D19E](https://via.placeholder.com/15/87D19E/87D19E.png) Light Green |
-| 4 | Crops | ![#FFDB5C](https://via.placeholder.com/15/FFDB5C/FFDB5C.png) Yellow |
-| 5 | Built Area | ![#ED022A](https://via.placeholder.com/15/ED022A/ED022A.png) Red |
-| 6 | Bare Ground | ![#EDE9E4](https://via.placeholder.com/15/EDE9E4/EDE9E4.png) Beige |
-| 7 | Snow/Ice | ![#F2FAFF](https://via.placeholder.com/15/F2FAFF/F2FAFF.png) White |
-| 8 | Clouds | ![#C8C8C8](https://via.placeholder.com/15/C8C8C8/C8C8C8.png) Gray |
-| 9 | Rangeland | ![#C6AD8D](https://via.placeholder.com/15/C6AD8D/C6AD8D.png) Tan |
+Snow/Ice and Clouds are **excluded** — neither class has any pixels in the Sylhet study area. They are remapped to label 255 (ignored by the loss and all metrics).
+
+| Model ID | ESRI Code | Class | Color |
+|:---:|:---:|---|---|
+| 0 | 1 | Water | ![#1A5BAB](https://via.placeholder.com/15/1A5BAB/1A5BAB.png) Blue |
+| 1 | 2 | Trees | ![#358221](https://via.placeholder.com/15/358221/358221.png) Green |
+| 2 | 4 | Flooded Vegetation | ![#87D19E](https://via.placeholder.com/15/87D19E/87D19E.png) Light Green |
+| 3 | 5 | Crops | ![#FFDB5C](https://via.placeholder.com/15/FFDB5C/FFDB5C.png) Yellow |
+| 4 | 7 | Built Area | ![#ED022A](https://via.placeholder.com/15/ED022A/ED022A.png) Red |
+| 5 | 8 | Bare Ground | ![#EDE9E4](https://via.placeholder.com/15/EDE9E4/EDE9E4.png) Beige |
+| 6 | 11 | Rangeland | ![#C6AD8D](https://via.placeholder.com/15/C6AD8D/C6AD8D.png) Tan |
+| *(ignored)* | 9 | ~~Snow/Ice~~ | absent in Sylhet |
+| *(ignored)* | 10 | ~~Clouds~~ | absent in Sylhet |
 
 ## Kaggle Deployment
 

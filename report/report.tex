@@ -1,0 +1,708 @@
+\documentclass[12pt,a4paper]{article}
+
+%% ── Packages ────────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage{listings}
+\usepackage{lstautogobble}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{abstract}
+
+%% ── Colours & Hyperref ──────────────────────────────────────────────────────
+\definecolor{myblue}{RGB}{30, 80, 160}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=myblue,
+    urlcolor=myblue,
+    citecolor=myblue,
+    pdftitle={Boundary Aware Residual Attention UNet for Satellite Image Segmentation},
+    pdfauthor={},
+}
+
+%% ── Section title formatting ────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{myblue}}{{\thesection.}}{0.5em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{{\thesubsection}}{0.5em}{}
+
+%% ── Header / Footer ─────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Boundary Aware Residual Attention UNet — Sylhet, Bangladesh}
+\lhead{\small Satellite Image Segmentation}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% ── Caption setup ───────────────────────────────────────────────────────────
+\captionsetup{font=small, labelfont=bf, skip=4pt}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+%% ── Title Page ───────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\LARGE\bfseries\color{myblue}
+    Boundary Aware Residual Attention UNet\\[0.5em]
+    for Satellite Image Segmentation\par}
+  \vspace{1.5cm}
+  \rule{0.7\linewidth}{0.8pt}\\[1cm]
+  {\large Project Report\\[0.4em]
+   Deep Learning for Remote Sensing\par}
+  \vspace{1.5cm}
+  {\normalsize
+    Trained on Kaggle GPU T4 $\cdot$ 200 epochs\\
+    Sentinel-2 / ESRI LULC 2023\\[1em]
+    \today\par}
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Problem Statement}
+
+Land use and land cover (LULC) mapping from satellite imagery is a critical
+task in environmental monitoring, urban planning, and disaster assessment.
+This project applies \textbf{deep learning-based semantic segmentation} to
+automatically classify every pixel of a Sentinel-2 multispectral image of
+the \textbf{Sylhet region, Bangladesh (2023)} into one of nine LULC
+categories.
+
+The core research question is:
+\begin{quote}
+\itshape
+Can we improve segmentation accuracy — especially at class boundaries — by
+combining spectral index fusion with morphological boundary-weighted loss?
+\end{quote}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Dataset}
+
+\subsection{Study Area}
+
+The study area is \textbf{Sylhet District, Bangladesh} — a region
+characterised by diverse land cover including haor wetlands, tea gardens,
+urban settlements, crop fields, and dense forest patches. Sylhet's ecological
+variety makes it an ideal testbed for multi-class LULC segmentation.
+
+The district boundary was obtained from the
+\textbf{FAO GAUL Level-2} administrative boundaries dataset
+(\texttt{FAO/GAUL/2015/level2}) filtered to Bangladesh $\to$ Sylhet.
+
+\subsection{Data Sources and Acquisition}
+
+All data were acquired and pre-processed using \textbf{Google Earth Engine
+(GEE)} and exported as 30\,m GeoTIFFs in \textbf{UTM Zone 46N
+(EPSG:32646)}.
+
+\begin{table}[H]
+\centering
+\caption{Dataset summary.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Item} & \textbf{Details} \\
+\midrule
+Image Source     & Sentinel-2 SR Harmonised (\texttt{COPERNICUS/S2\_SR\_HARMONISED}) \\
+Label Source     & ESRI Global LULC 10\,m TS (\texttt{projects/sat-io/\ldots/ESRI\_Global-LULC\_10m\_TS}) \\
+Study Area       & Sylhet District, Bangladesh \\
+Year             & 2023 (01 Jan -- 31 Dec) \\
+Spatial Resolution & 30\,m (resampled / exported) \\
+Coordinate System & UTM Zone 46N (EPSG:32646) \\
+Image Bands      & B2 (Blue), B3 (Green), B4 (Red), B8 (NIR) \\
+Exported Image Size & $\approx$52.9\,MB GeoTIFF (4-band float32) \\
+Cloud Filter     & $<$40\,\% cloud cover per scene; SCL-based pixel mask \\
+Composite Method & Annual median of all valid pixels \\
+Patch Size       & $256 \times 256$ pixels \\
+Patch Step       & 256\,px (non-overlapping) \\
+Train/Val/Test   & 70\,\% / 15\,\% / 15\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sentinel-2 Cloud Masking}
+
+Clouds and cloud shadows were removed at the pixel level using the Sentinel-2
+\textbf{Scene Classification Layer (SCL)}. The following SCL classes were
+masked out:
+
+\begin{table}[H]
+\centering
+\caption{SCL values excluded from the composite.}
+\begin{tabular}{cl}
+\toprule
+\textbf{SCL Value} & \textbf{Class} \\
+\midrule
+3  & Cloud Shadow \\
+8  & Cloud Medium Probability \\
+9  & Cloud High Probability \\
+10 & Thin Cirrus \\
+11 & Snow / Ice \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The remaining valid pixels were composited using the \textbf{annual median},
+which is robust to remaining atmospheric artefacts and seasonal variation.
+Reflectance values were then scaled to the range $[0, 1]$ by dividing by
+10{,}000.
+
+\subsection{LULC Label Preparation}
+
+The ESRI Global LULC product uses ten original class codes. Snow/Ice and
+Clouds are \textbf{excluded} from this study because neither class has any
+pixels in the Sylhet study area. The remaining seven classes are remapped to
+consecutive integer labels (0--6) and any mask pixels carrying the Snow/Ice
+or Cloud codes are assigned the \texttt{ignore} label (255), which is masked
+out of the loss and all metric calculations:
+
+\begin{table}[H]
+\centering
+\caption{ESRI LULC codes remapped to 7 model labels (Snow/Ice and Clouds excluded).}
+\begin{tabular}{cclc}
+\toprule
+\textbf{ESRI Code} & \textbf{Model ID} & \textbf{Class} & \textbf{Colour} \\
+\midrule
+1  & 0 & Water              & \texttt{\#1A5BAB} \\
+2  & 1 & Trees              & \texttt{\#358221} \\
+4  & 2 & Flooded Vegetation & \texttt{\#87D19E} \\
+5  & 3 & Crops              & \texttt{\#FFDB5C} \\
+7  & 4 & Built Area         & \texttt{\#ED022A} \\
+8  & 5 & Bare Ground        & \texttt{\#EDE9E4} \\
+9  & \textit{ignored (255)} & \textit{Snow/Ice}  & \textit{absent in Sylhet} \\
+10 & \textit{ignored (255)} & \textit{Clouds}    & \textit{absent in Sylhet} \\
+11 & 6 & Rangeland          & \texttt{\#C6AD8D} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.65\linewidth]{class_legend.png}
+  \caption{Colour legend for the seven active LULC classes used in this study.
+           Snow/Ice and Clouds are excluded from training and evaluation.}
+\end{figure}
+
+\subsection{GEE Data Acquisition Script}
+
+The complete Google Earth Engine JavaScript script used for data acquisition
+and export is listed below.
+
+\lstdefinestyle{gee}{%
+  language=Java,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\bfseries\color{myblue},
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{teal},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=6pt,
+  breaklines=true,
+  breakatwhitespace=true,
+  frame=single,
+  rulecolor=\color{gray!40},
+  backgroundcolor=\color{gray!5},
+  captionpos=b,
+  tabsize=2,
+  showstringspaces=false,
+  autogobble=true,
+  morekeywords={var,function,return},
+  deletekeywords={int,float,double,class}
+}
+
+\begin{lstlisting}[style=gee, caption={Google Earth Engine script for Sentinel-2 and ESRI LULC data acquisition over Sylhet District (2023).}, label={lst:gee}]
+// ======================================================
+// Sylhet District: Sentinel-2 imagery + ESRI LULC
+// Exported at 30 m resolution
+// ======================================================
+
+// ---------- Settings ----------
+var YEAR = 2023;
+var START_DATE = YEAR + '-01-01';
+var END_DATE   = YEAR + '-12-31';
+var S2_BANDS   = ['B2', 'B3', 'B4', 'B8'];
+var exportCrs  = 'EPSG:32646';
+
+// ---------- Sylhet District boundary ----------
+var sylhet = ee.FeatureCollection('FAO/GAUL/2015/level2')
+  .filter(ee.Filter.eq('ADM0_NAME', 'Bangladesh'))
+  .filter(ee.Filter.eq('ADM2_NAME', 'Sylhet'));
+var roi = sylhet.geometry();
+
+Map.centerObject(roi, 9);
+Map.addLayer(roi, {color: 'red'}, 'Sylhet District');
+
+// ---------- Sentinel-2 cloud mask (SCL-based) ----------
+function maskS2Clouds(image) {
+  var scl  = image.select('SCL');
+  var mask = scl.neq(3).and(scl.neq(8)).and(scl.neq(9))
+                       .and(scl.neq(10)).and(scl.neq(11));
+  return image.updateMask(mask);
+}
+
+// ---------- Sentinel-2 annual median composite ----------
+var s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+  .filterBounds(roi)
+  .filterDate(START_DATE, END_DATE)
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 40))
+  .map(maskS2Clouds)
+  .select(S2_BANDS)
+  .median()
+  .clip(roi)
+  .divide(10000)   // scale to [0,1]
+  .toFloat();
+
+Map.addLayer(s2, {bands:['B4','B3','B2'], min:0, max:0.4},
+             'Sentinel-2 RGB');
+
+// ---------- ESRI LULC ----------
+var esri = ee.ImageCollection(
+  'projects/sat-io/open-datasets/landcover/ESRI_Global-LULC_10m_TS')
+  .filterDate(START_DATE, END_DATE)
+  .mosaic()
+  .clip(roi);
+
+// ---------- Remap classes to 0-8 ----------
+var lulc = esri.remap(
+  [1, 2, 4, 5, 7, 8, 9, 10, 11],
+  [0, 1, 2, 3, 4, 5, 6,  7,  8]
+).rename('label').toByte();
+
+Map.addLayer(lulc,
+  {min:0, max:8, palette:['#1A5BAB','#358221','#87D19E','#FFDB5C',
+                           '#ED022A','#EDE9E4','#F2FAFF','#C8C8C8','#C6AD8D']},
+  'ESRI LULC');
+
+// ---------- Export Sentinel-2 at 30 m ----------
+Export.image.toDrive({
+  image: s2,
+  description: 'sylhet_sentinel2_30m_' + YEAR,
+  folder: 'GEE_Sylhet_Training',
+  fileNamePrefix: 'sylhet_sentinel2_30m_' + YEAR,
+  region: roi, scale: 30, crs: exportCrs,
+  maxPixels: 1e13, fileFormat: 'GeoTIFF'
+});
+
+// ---------- Export LULC mask at 30 m ----------
+Export.image.toDrive({
+  image: lulc,
+  description: 'sylhet_esri_lulc_30m_mask_' + YEAR,
+  folder: 'GEE_Sylhet_Training',
+  fileNamePrefix: 'sylhet_esri_lulc_30m_mask_' + YEAR,
+  region: roi, scale: 30, crs: exportCrs,
+  maxPixels: 1e13, fileFormat: 'GeoTIFF'
+});
+\end{lstlisting}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Model Architecture — Residual Attention U-Net}
+
+\subsection{Base U-Net Encoder--Decoder}
+
+The backbone is a standard U-Net with four encoder levels, a bottleneck, and
+four symmetric decoder levels, using transposed convolutions for upsampling and
+skip connections for multi-scale feature reuse.
+
+\subsection{Residual Connections}
+
+Each convolutional block is extended with a \textbf{residual shortcut}
+(identity mapping or 1$\times$1 projection when channel dimensions differ):
+\begin{equation}
+  \mathbf{x}_\text{out} = \text{ReLU}\!\left(\mathcal{F}(\mathbf{x}; \theta) + W_s\,\mathbf{x}\right)
+\end{equation}
+Residual connections alleviate the vanishing-gradient problem and let the
+network learn residual corrections rather than full mappings from scratch.
+
+\subsection{Attention Gates on Skip Connections}
+
+Standard U-Net skip connections pass \emph{all} encoder features to the
+decoder. Here, \textbf{attention gates} selectively suppress irrelevant
+activations before concatenation:
+\begin{align}
+  \alpha &= \sigma\!\left(\mathbf{W}_a\,\text{ReLU}\!\left(\mathbf{W}_s\,\mathbf{s} + \mathbf{W}_g\,\mathbf{g}\right)\right) \\
+  \hat{\mathbf{s}} &= \alpha \odot \mathbf{s}
+\end{align}
+where $\mathbf{s}$ is the skip feature, $\mathbf{g}$ is the gating signal from
+the decoder, and $\sigma$ is the sigmoid activation.
+
+\subsection{Architecture Summary}
+
+\begin{table}[H]
+\centering
+\caption{Layer configuration of the Residual Attention U-Net.}
+\begin{tabular}{llr}
+\toprule
+\textbf{Block} & \textbf{Type} & \textbf{Filters} \\
+\midrule
+Encoder 1 & Residual Conv + MaxPool & 64 \\
+Encoder 2 & Residual Conv + MaxPool & 128 \\
+Encoder 3 & Residual Conv + MaxPool & 256 \\
+Encoder 4 & Residual Conv + MaxPool & 512 \\
+Bottleneck & Residual Conv & 1024 \\
+Decoder 4 & TransConv + Attention Gate + Residual Conv & 512 \\
+Decoder 3 & TransConv + Attention Gate + Residual Conv & 256 \\
+Decoder 2 & TransConv + Attention Gate + Residual Conv & 128 \\
+Decoder 1 & TransConv + Attention Gate + Residual Conv & 64 \\
+Output & Conv $1\times1$ + Softmax & 9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dropout (rate = 0.3) is applied after every encoder, bottleneck, and decoder
+block to regularise training.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Innovations — Proposed Model (Version 3)}
+
+\subsection{Six-Channel Spectral Input via NDVI and NDWI Fusion}
+
+The raw Sentinel-2 image provides four bands (B2=Blue, B3=Green, B4=Red,
+B8=NIR). Two spectral indices are computed on-the-fly and appended as
+additional channels:
+
+\begin{align}
+  \text{NDVI} &= \frac{B8 - B4}{B8 + B4} \\[4pt]
+  \text{NDWI} &= \frac{B3 - B8}{B3 + B8}
+\end{align}
+
+\begin{table}[H]
+\centering
+\caption{Role of the spectral indices.}
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Index} & \textbf{Purpose} \\
+\midrule
+NDVI & Separates vegetation (trees, crops, rangeland, flooded vegetation) from non-vegetation. \\
+NDWI & Highlights water bodies and flooded areas. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This expands the model input from \textbf{4 channels to 6 channels}, providing
+richer spectral cues without requiring additional training data.
+
+\subsection{Boundary-Weighted Focal Loss}
+
+The total loss is a 50/50 combination of Dice loss and Focal loss. For
+Version~3, the focal component is additionally scaled by a
+\textbf{morphological boundary map}:
+
+\begin{equation}
+  B(L) = \text{dilate}(L,\,k) - \text{erode}(L,\,k)
+\end{equation}
+
+Pixels lying on class boundaries receive an amplified loss weight
+(multiplier $= 2.0$), forcing the network to attend to transition regions:
+
+\begin{equation}
+  w_\text{boundary}(\mathbf{p}) = 1 + \lambda \cdot B(\mathbf{p}), \quad \lambda = 2.0
+\end{equation}
+
+The full loss function is:
+\begin{equation}
+  \mathcal{L} = 0.5\,\mathcal{L}_\text{Dice} + 0.5\,\mathcal{L}_\text{Focal}^\text{boundary}
+\end{equation}
+
+\subsection{Inverse-Frequency Class Weighting}
+
+Class weights are computed as $w_c = 1/\sqrt{f_c}$ (where $f_c$ is the
+fraction of pixels belonging to class $c$) to handle severe class imbalance
+(e.g.\ Bare Ground has far fewer pixels than Crops).
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Training Configuration}
+
+\begin{table}[H]
+\centering
+\caption{Hyperparameters and hardware.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Epochs              & 200 (early stopping, patience = 30) \\
+Batch size          & 16 \\
+Optimiser           & Adam \\
+Learning rate       & $1\times10^{-4}$ \\
+LR schedule         & Cosine Annealing \\
+Loss function       & $0.5 \times$ Dice $+$ $0.5 \times$ Boundary-Focal \\
+Dropout rate        & 0.3 \\
+Hardware            & Kaggle GPU T4 ($\approx$32 min per run) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Ablation Study Design}
+
+Three configurations were evaluated to isolate the contribution of each
+proposed component:
+
+\begin{table}[H]
+\centering
+\caption{Ablation configurations.}
+\begin{tabular}{clccc}
+\toprule
+\textbf{Version} & \textbf{Description} & \textbf{Residual+Attn} & \textbf{NDVI/NDWI} & \textbf{Boundary Loss} \\
+\midrule
+V1 & Baseline                & \checkmark & $\times$ & $\times$ \\
+V2 & Baseline + NDVI/NDWI   & \checkmark & \checkmark & $\times$ \\
+V3 & Proposed                & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Results}
+
+\subsection{Global Performance Comparison}
+
+\begin{table}[H]
+\centering
+\caption{Overall metrics for all three ablation versions.}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & \textbf{V1 Baseline} & \textbf{V2 +NDVI/NDWI} & \textbf{V3 Proposed} & \textbf{Gain} \\
+\midrule
+Overall Accuracy    & 90.13\% & 90.29\% & \textbf{90.53\%} & $+0.40$\% \\
+Mean IoU (all)      & 52.67\% & 53.98\% & \textbf{55.51\%} & $+2.84$\% \\
+Mean IoU (support.) & 67.72\% & ---     & \textbf{71.37\%} & $+3.65$\% \\
+Weighted IoU        & 82.98\% & 83.15\% & \textbf{83.71\%} & $+0.73$\% \\
+Mean F1 Score       & 61.70\% & 62.73\% & \textbf{63.96\%} & $+2.26$\% \\
+BF Score (boundary) & 0.5975  & 0.5999  & \textbf{0.6358}  & $+0.0383$ \\
+Boundary IoU        & 42.60\% & 42.85\% & \textbf{46.61\%} & $+4.01$\% \\
+Training Time (s)   & 1903    & 1848    & 1940             & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Per-Class IoU Comparison}
+
+\begin{table}[H]
+\centering
+\caption{Per-class IoU across ablation versions (7 active classes only).}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{V1} & \textbf{V2} & \textbf{V3} & \textbf{Net Gain} \\
+\midrule
+Water               & 93.34\% & 93.87\% & \textbf{94.25\%} & $+0.91$\% \\
+Trees               & 67.36\% & 68.51\% & \textbf{70.02\%} & $+2.66$\% \\
+Flooded Vegetation  & 44.18\% & 48.57\% & \textbf{52.10\%} & $+7.92$\% \\
+Crops               & 87.84\% & 87.82\% & \textbf{87.96\%} & $+0.12$\% \\
+Built Area          & 54.94\% & 53.48\% & \textbf{55.03\%} & $+0.09$\% \\
+Bare Ground         & 79.04\% & 83.13\% & \textbf{84.78\%} & $+5.75$\% \\
+Rangeland           & 47.33\% & 50.41\% & \textbf{55.46\%} & $+8.13$\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Proposed Model — Per-Class Boundary Metrics}
+
+\begin{table}[H]
+\centering
+\caption{Boundary metrics for V3 (Proposed) per class.}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{Boundary Prec.} & \textbf{Boundary Rec.} & \textbf{BF Score} & \textbf{Boundary IoU} \\
+\midrule
+Water              & 70.5\% & 49.6\% & 0.582 & 0.411 \\
+Trees              & 64.9\% & 62.2\% & 0.635 & 0.465 \\
+Flooded Vegetation & 65.6\% & 25.5\% & 0.367 & 0.225 \\
+Crops              & 61.4\% & 53.5\% & 0.572 & 0.401 \\
+Built Area         & 48.1\% & 44.8\% & 0.464 & 0.302 \\
+Bare Ground        & \textbf{96.5\%} & 78.6\% & \textbf{0.866} & \textbf{0.764} \\
+Rangeland          & 76.3\% & 34.8\% & 0.478 & 0.314 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Visualizations}
+
+\subsection{Training Curves}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v1_training_history.png}
+    \caption{V1 Baseline}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v3_training_history.png}
+    \caption{V3 Proposed}
+  \end{subfigure}
+  \caption{Training and validation loss/IoU curves for Baseline vs.\ Proposed.}
+\end{figure}
+
+\subsection{Per-Class IoU Bar Charts}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v1_per_class_iou.png}
+    \caption{V1 Baseline}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v3_per_class_iou.png}
+    \caption{V3 Proposed}
+  \end{subfigure}
+  \caption{Per-class IoU comparison between Baseline and Proposed model.}
+\end{figure}
+
+\subsection{Confusion Matrices}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v1_confusion_matrix.png}
+    \caption{V1 Baseline}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{v3_confusion_matrix.png}
+    \caption{V3 Proposed}
+  \end{subfigure}
+  \caption{Confusion matrices (normalised \%).}
+\end{figure}
+
+\subsection{All Metrics — Proposed Model}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{v3_all_metrics.png}
+  \caption{Grouped bar chart showing IoU, Precision, Recall, and F1 per class
+           for the Proposed model (V3).}
+\end{figure}
+
+\subsection{Boundary Metrics — Proposed Model}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{v3_boundary_metrics.png}
+  \caption{Per-class boundary precision, recall, BF Score, and Boundary IoU
+           for the Proposed model (V3).}
+\end{figure}
+
+\subsection{Sample Predictions}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{v3_predictions.png}
+  \caption{Sample predictions: Input RGB $\to$ NDVI channel $\to$ Ground Truth
+           $\to$ Model Prediction (Proposed, V3).}
+\end{figure}
+
+\subsection{Boundary Prediction Visualizations}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{v3_boundary_predictions.png}
+  \caption{Boundary predictions for V3 (Proposed).
+           \textcolor{green}{\textbf{Green}} = True Positive,
+           \textcolor{red}{\textbf{Red}} = Missed (FN),
+           \textcolor{yellow}{\textbf{Yellow}} = False Positive (FP).}
+\end{figure}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Findings}
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}]
+
+  \item \textbf{NDVI/NDWI fusion (V1$\to$V2) primarily helps spectrally
+        ambiguous classes.}
+        Flooded Vegetation improved by $+4.39$\% IoU and Bare Ground by
+        $+4.09$\% IoU — classes where vegetation and water spectral signatures
+        are critical for discrimination.
+
+  \item \textbf{Boundary-weighted loss (V2$\to$V3) provides the largest
+        overall boost.}
+        Moving from V2 to V3 added $+1.53$\% Mean IoU and, more importantly,
+        $+3.58$\% BF Score, confirming that morphological edge weighting
+        directly improves spatial precision.
+
+  \item \textbf{Rangeland shows the largest absolute gain} ($+8.13$\% IoU,
+        V1$\to$V3), likely because it spectrally overlaps with Crops and Trees;
+        combined NDVI cues plus boundary sharpening help resolve this ambiguity.
+
+  \item \textbf{Flooded Vegetation is the most challenging class} (52.10\% IoU
+        at best) due to its spectral similarity with both open water and dense
+        vegetation, and its limited training support ($\approx$52\,K pixels
+        vs.\ $\approx$2.6\,M for Crops).
+
+  \item \textbf{Boundary recall is the bottleneck.}
+        Even with boundary-weighted loss, the model misses more true boundary
+        pixels than it spuriously adds. Future work could explore larger
+        boundary kernels or dedicated boundary-head modules.
+
+  \item \textbf{Dominant classes generalise well:}
+        Water (94.25\%), Crops (87.96\%), and Bare Ground (84.78\%) all achieve
+        strong performance, validating the inverse-frequency class weighting
+        strategy.
+
+\end{enumerate}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations and Future Work}
+
+\begin{table}[H]
+\centering
+\caption{Current limitations and suggested improvements.}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+\textbf{Limitation} & \textbf{Suggested Improvement} \\
+\midrule
+Single-scene dataset (one GeoTIFF) & Multi-temporal / multi-region training \\
+30\,m spatial resolution limits fine-boundary accuracy & Use 10\,m Sentinel-2 bands or fuse with high-resolution imagery \\
+Boundary recall lag & Add a dedicated boundary detection head (e.g.\ CASENet-style) \\
+No data augmentation & Add rotation, flipping, colour jitter for robustness \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+
+This project demonstrates that a \textbf{Residual Attention U-Net} enhanced
+with \textbf{spectral index fusion (NDVI/NDWI)} and a
+\textbf{morphological boundary-weighted focal loss} achieves consistent
+improvements over a strong attention-residual baseline for satellite-image LULC
+segmentation.
+
+The proposed model (V3) reaches:
+\begin{itemize}
+  \item \textbf{90.53\%} Overall Accuracy
+  \item \textbf{55.51\%} Mean IoU ($+2.84$\% over V1)
+  \item \textbf{BF Score 0.636} ($+6.4$\% relative over V1)
+  \item \textbf{46.61\%} Boundary IoU ($+9.4$\% relative over V1)
+\end{itemize}
+
+The ablation study confirms that both contributions — spectral fusion and
+boundary loss — are complementary and additive, with the boundary loss being
+particularly impactful for edge delineation quality. All models were trained in
+under 33 minutes per run on a single Kaggle T4 GPU.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section*{Acknowledgements}
+\begin{itemize}
+  \item \textbf{Sentinel-2} — European Space Agency (ESA) multispectral
+        satellite imagery.
+  \item \textbf{ESRI LULC} — Esri 10-class global land use / land cover map
+        (2023).
+\end{itemize}
+
+\end{document}

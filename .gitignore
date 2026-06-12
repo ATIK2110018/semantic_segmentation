@@ -1,27 +1,58 @@
-# Python
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .ipynb_checkpoints/
 
-# Models (large binary files)
-models/
+# ── Trained models (large binaries) ─────────────────────────────────────────
 *.keras
 *.h5
 *.hdf5
+*.pt
+*.pth
+*.onnx
 
-# Results / outputs
+# ── Dataset (large GeoTIFFs) ─────────────────────────────────────────────────
+dataset/*.tif
+dataset/*.tiff
+
+# ── Run outputs / results ────────────────────────────────────────────────────
 results/
 ablation_results/
-*.png
-*.npy
+ablation_results*/
 
-# OS / IDE
+# ── Report — keep only the .tex source, ignore everything else ───────────────
+report/*.png
+report/*.jpg
+report/*.pdf
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.fls
+report/*.fdb_latexmk
+report/*.npy
+
+# ── Loose result files / CSVs at repo root ───────────────────────────────────
+*.npy
+ablation_comparison*.csv
+
+# ── OS / IDE ─────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 *.swp
+*.swo
 .vscode/
 .idea/
 
-# Zone.Identifier files (Windows WSL)
+# ── Windows WSL Zone.Identifier files ────────────────────────────────────────
+*:Zone.Identifier
 *Zone.Identifier
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+*.zip
+*.tar.gz
+*.egg-info/
+.env

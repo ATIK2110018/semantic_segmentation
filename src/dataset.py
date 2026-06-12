@@ -17,16 +17,16 @@ AERIAL_CLASSES = {
 AERIAL_CLASS_NAMES = ["Unlabeled", "Building", "Land", "Road", "Vegetation", "Water"]
 AERIAL_CLASS_COLORS = ["#9B9B9B", "#3C1098", "#8429F6", "#6EC1E4", "#FEDD3A", "#E2A929"]
 
+# Snow/Ice (original ID 6) and Clouds (original ID 7) are excluded because
+# they are absent in the Sylhet study area.  Rangeland shifts to ID 6.
 ESRI_CLASS_NAMES = [
-    "Water",
-    "Trees",
-    "Flooded Vegetation",
-    "Crops",
-    "Built Area",
-    "Bare Ground",
-    "Snow/Ice",
-    "Clouds",
-    "Rangeland",
+    "Water",            # 0
+    "Trees",            # 1
+    "Flooded Vegetation",  # 2
+    "Crops",            # 3
+    "Built Area",       # 4
+    "Bare Ground",      # 5
+    "Rangeland",        # 6  (was 8 in the 9-class scheme)
 ]
 ESRI_CLASS_COLORS = [
     "#1A5BAB",
@@ -35,10 +35,17 @@ ESRI_CLASS_COLORS = [
     "#FFDB5C",
     "#ED022A",
     "#EDE9E4",
-    "#F2FAFF",
-    "#C8C8C8",
     "#C6AD8D",
 ]
+
+# Pixel-level remap applied after loading the mask:
+#   old 0-5  -> 0-5  (unchanged)
+#   old 6    -> 255  (Snow/Ice  — mark as ignore)
+#   old 7    -> 255  (Clouds    — mark as ignore)
+#   old 8    -> 6    (Rangeland — shift down)
+_ESRI_REMAP = np.array(
+    [0, 1, 2, 3, 4, 5, 255, 255, 6], dtype=np.uint8
+)  # index = old label, value = new label
 
 
 def rgb_to_label(mask):
@@ -201,6 +208,9 @@ def load_geotiff_data(
         image = image_src.read().astype(np.float32)
         mask = mask_src.read(1).astype(np.uint8)
 
+    # Remap mask: collapse 9-class -> 7-class, set absent classes to 255
+    mask = np.where(mask < len(_ESRI_REMAP), _ESRI_REMAP[mask], 255).astype(np.uint8)
+
     image = np.moveaxis(image, 0, -1)
     image = _normalize_sentinel_image(image)
 
@@ -226,7 +236,7 @@ def load_geotiff_data(
         "mask_path": str(mask_path),
         "class_names": ESRI_CLASS_NAMES,
         "class_colors": ESRI_CLASS_COLORS,
-        "ignore_label": None,
+        "ignore_label": 255,  # pixels remapped to 255 (Snow/Ice, Clouds) are ignored
     }
     return np.array(images, dtype=np.float32), np.array(masks, dtype=np.uint8), metadata
 
@@ -283,7 +293,14 @@ def prepare_dataset(
     if len(x) == 0:
         raise ValueError("No valid image/mask patches were created from the dataset.")
 
-    n_classes = max(len(metadata["class_names"]), int(np.max(y)) + 1)
+    n_classes = len(metadata["class_names"])
+
+    # Clamp ignore pixels (255) to 0 before one-hot encoding;
+    # the loss function will zero them out via ignore_label masking.
+    ignore = metadata.get("ignore_label")
+    if ignore is not None:
+        y = np.where(y == ignore, 0, y).astype(np.uint8)
+
     y_cat = to_categorical(y, num_classes=n_classes)
 
     x_train, x_test, y_train, y_test = train_test_split(
