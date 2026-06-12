@@ -13,10 +13,6 @@ __pycache__/
 *.pth
 *.onnx
 
-# ── Dataset (large GeoTIFFs) ─────────────────────────────────────────────────
-dataset/*.tif
-dataset/*.tiff
-
 # ── Run outputs / results ────────────────────────────────────────────────────
 results/
 ablation_results/
