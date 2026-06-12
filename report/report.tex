@@ -475,19 +475,18 @@ V3 & Proposed                & \checkmark & \checkmark & \checkmark \\
 
 \begin{table}[H]
 \centering
-\caption{Overall metrics for all three ablation versions.}
-\begin{tabular}{lcccc}
+\caption{Overall metrics for all five ablation versions.}
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Metric} & \textbf{V1 Baseline} & \textbf{V2 +NDVI/NDWI} & \textbf{V3 Proposed} & \textbf{Gain} \\
+\textbf{Metric} & \textbf{V1 Base} & \textbf{V2 +NDVI} & \textbf{V3 (0.5)} & \textbf{V4 (1.0)} & \textbf{V5 (2.0)} & \textbf{Net Gain} \\
 \midrule
-Overall Accuracy    & 90.13\% & 90.29\% & \textbf{90.53\%} & $+0.40$\% \\
-Mean IoU (all)      & 52.67\% & 53.98\% & \textbf{55.51\%} & $+2.84$\% \\
-Mean IoU (support.) & 67.72\% & ---     & \textbf{71.37\%} & $+3.65$\% \\
-Weighted IoU        & 82.98\% & 83.15\% & \textbf{83.71\%} & $+0.73$\% \\
-Mean F1 Score       & 61.70\% & 62.73\% & \textbf{63.96\%} & $+2.26$\% \\
-BF Score (boundary) & 0.5975  & 0.5999  & \textbf{0.6358}  & $+0.0383$ \\
-Boundary IoU        & 42.60\% & 42.85\% & \textbf{46.61\%} & $+4.01$\% \\
-Training Time (s)   & 1903    & 1848    & 1940             & --- \\
+Overall Accuracy    & 90.74\% & 91.19\% & 91.55\% & 91.52\% & \textbf{91.69\%} & $+0.95$\% \\
+Mean IoU            & 70.14\% & 72.43\% & 73.53\% & 74.15\% & \textbf{74.98\%} & $+4.84$\% \\
+Weighted IoU        & 83.81\% & 84.56\% & 85.14\% & 85.17\% & \textbf{85.40\%} & $+1.59$\% \\
+Mean F1 Score       & 81.10\% & 82.91\% & 83.73\% & 84.18\% & \textbf{84.86\%} & $+3.76$\% \\
+BF Score (boundary) & 0.6184  & 0.6326  & 0.6404  & 0.6493  & \textbf{0.6571}  & $+0.0387$ \\
+Boundary IoU        & 44.76\% & 46.26\% & 47.10\% & 48.07\% & \textbf{48.93\%} & $+4.17$\% \\
+Training Time (s)   & 1898    & 1907    & 1907    & 1916    & 1911             & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -496,18 +495,18 @@ Training Time (s)   & 1903    & 1848    & 1940             & --- \\
 
 \begin{table}[H]
 \centering
-\caption{Per-class IoU across ablation versions (7 active classes only).}
-\begin{tabular}{lcccc}
+\caption{Per-class IoU across ablation versions.}
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Class} & \textbf{V1} & \textbf{V2} & \textbf{V3} & \textbf{Net Gain} \\
+\textbf{Class} & \textbf{V1} & \textbf{V2} & \textbf{V3 (0.5)} & \textbf{V4 (1.0)} & \textbf{V5 (2.0)} & \textbf{Net Gain} \\
 \midrule
-Water               & 93.34\% & 93.87\% & \textbf{94.25\%} & $+0.91$\% \\
-Trees               & 67.36\% & 68.51\% & \textbf{70.02\%} & $+2.66$\% \\
-Flooded Vegetation  & 44.18\% & 48.57\% & \textbf{52.10\%} & $+7.92$\% \\
-Crops               & 87.84\% & 87.82\% & \textbf{87.96\%} & $+0.12$\% \\
-Built Area          & 54.94\% & 53.48\% & \textbf{55.03\%} & $+0.09$\% \\
-Bare Ground         & 79.04\% & 83.13\% & \textbf{84.78\%} & $+5.75$\% \\
-Rangeland           & 47.33\% & 50.41\% & \textbf{55.46\%} & $+8.13$\% \\
+Water               & 94.01\% & 94.22\% & 94.30\% & 94.46\% & \textbf{94.49\%} & $+0.48$\% \\
+Trees               & 69.85\% & 70.84\% & 72.52\% & 71.64\% & \textbf{72.61\%} & $+2.76$\% \\
+Flooded Vegetation  & 46.00\% & 50.96\% & 52.54\% & 54.08\% & \textbf{55.53\%} & $+9.53$\% \\
+Crops               & 88.35\% & 88.62\% & 88.98\% & 89.08\% & \textbf{89.13\%} & $+0.78$\% \\
+Built Area          & 55.73\% & 59.41\% & 61.05\% & 61.09\% & \textbf{61.60\%} & $+5.87$\% \\
+Bare Ground         & 85.60\% & 88.53\% & 89.53\% & \textbf{91.37\%} & 90.32\% & $+4.72$\% \\
+Rangeland           & 51.42\% & 54.44\% & 55.76\% & 57.29\% & \textbf{61.20\%} & $+9.78$\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -516,18 +515,18 @@ Rangeland           & 47.33\% & 50.41\% & \textbf{55.46\%} & $+8.13$\% \\
 
 \begin{table}[H]
 \centering
-\caption{Boundary metrics for V3 (Proposed) per class.}
+\caption{Boundary metrics for V5 (Proposed - Mult 2.0) per class.}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Class} & \textbf{Boundary Prec.} & \textbf{Boundary Rec.} & \textbf{BF Score} & \textbf{Boundary IoU} \\
 \midrule
-Water              & 70.5\% & 49.6\% & 0.582 & 0.411 \\
-Trees              & 64.9\% & 62.2\% & 0.635 & 0.465 \\
-Flooded Vegetation & 65.6\% & 25.5\% & 0.367 & 0.225 \\
-Crops              & 61.4\% & 53.5\% & 0.572 & 0.401 \\
-Built Area         & 48.1\% & 44.8\% & 0.464 & 0.302 \\
-Bare Ground        & \textbf{96.5\%} & 78.6\% & \textbf{0.866} & \textbf{0.764} \\
-Rangeland          & 76.3\% & 34.8\% & 0.478 & 0.314 \\
+Water              & 72.7\% & 53.0\% & 0.613 & 0.442 \\
+Trees              & 66.8\% & 63.5\% & 0.651 & 0.483 \\
+Flooded Vegetation & 72.9\% & 31.9\% & 0.444 & 0.285 \\
+Crops              & 65.1\% & 57.4\% & 0.609 & 0.439 \\
+Built Area         & 56.9\% & 42.1\% & 0.484 & 0.319 \\
+Bare Ground        & \textbf{98.3\%} & \textbf{87.3\%} & \textbf{0.925} & \textbf{0.860} \\
+Rangeland          & 81.4\% & 41.7\% & 0.552 & 0.381 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -625,21 +624,21 @@ Rangeland          & 76.3\% & 34.8\% & 0.478 & 0.314 \\
 
   \item \textbf{NDVI/NDWI fusion (V1$\to$V2) primarily helps spectrally
         ambiguous classes.}
-        Flooded Vegetation improved by $+4.39$\% IoU and Bare Ground by
-        $+4.09$\% IoU — classes where vegetation and water spectral signatures
+        Flooded Vegetation improved by $+4.96$\% IoU and Bare Ground by
+        $+2.93$\% IoU — classes where vegetation and water spectral signatures
         are critical for discrimination.
 
-  \item \textbf{Boundary-weighted loss (V2$\to$V3) provides the largest
+  \item \textbf{Boundary-weighted loss (V2$\to$V5) provides the largest
         overall boost.}
-        Moving from V2 to V3 added $+1.53$\% Mean IoU and, more importantly,
-        $+3.58$\% BF Score, confirming that morphological edge weighting
+        Moving from V2 to V5 added $+2.55$\% Mean IoU and, more importantly,
+        $+2.45$\% BF Score, confirming that morphological edge weighting
         directly improves spatial precision.
 
-  \item \textbf{Rangeland shows the largest absolute gain} ($+8.13$\% IoU,
-        V1$\to$V3), likely because it spectrally overlaps with Crops and Trees;
+  \item \textbf{Rangeland shows the largest absolute gain} ($+9.78$\% IoU,
+        V1$\to$V5), likely because it spectrally overlaps with Crops and Trees;
         combined NDVI cues plus boundary sharpening help resolve this ambiguity.
 
-  \item \textbf{Flooded Vegetation is the most challenging class} (52.10\% IoU
+  \item \textbf{Flooded Vegetation is the most challenging class} (55.53\% IoU
         at best) due to its spectral similarity with both open water and dense
         vegetation, and its limited training support ($\approx$52\,K pixels
         vs.\ $\approx$2.6\,M for Crops).
@@ -650,7 +649,7 @@ Rangeland          & 76.3\% & 34.8\% & 0.478 & 0.314 \\
         boundary kernels or dedicated boundary-head modules.
 
   \item \textbf{Dominant classes generalise well:}
-        Water (94.25\%), Crops (87.96\%), and Bare Ground (84.78\%) all achieve
+        Water (94.49\%), Crops (89.13\%), and Bare Ground (90.32\%) all achieve
         strong performance, validating the inverse-frequency class weighting
         strategy.
 
@@ -683,12 +682,12 @@ with \textbf{spectral index fusion (NDVI/NDWI)} and a
 improvements over a strong attention-residual baseline for satellite-image LULC
 segmentation.
 
-The proposed model (V3) reaches:
+The proposed model (V5) reaches:
 \begin{itemize}
-  \item \textbf{90.53\%} Overall Accuracy
-  \item \textbf{55.51\%} Mean IoU ($+2.84$\% over V1)
-  \item \textbf{BF Score 0.636} ($+6.4$\% relative over V1)
-  \item \textbf{46.61\%} Boundary IoU ($+9.4$\% relative over V1)
+  \item \textbf{91.69\%} Overall Accuracy
+  \item \textbf{74.98\%} Mean IoU ($+4.84$\% over V1)
+  \item \textbf{BF Score 0.6571} ($+6.26$\% relative over V1)
+  \item \textbf{48.93\%} Boundary IoU ($+9.32$\% relative over V1)
 \end{itemize}
 
 The ablation study confirms that both contributions — spectral fusion and

@@ -87,25 +87,27 @@ The final results of the ablation study (trained on Kaggle GPU T4 for 200 epochs
 
 | Configuration | Overall Accuracy | Mean IoU (7 classes) | Weighted IoU | Mean F1 | BF Score (Edge F1) | Boundary IoU | Duration (s) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Version 1 (Baseline)** | 90.13% | 67.72% | 82.98% | 61.70% | 0.5975 | 42.60% | 1903.4 |
-| **Version 2 (Baseline + NDVI/NDWI)** | 90.29% | — | 83.15% | 62.73% | 0.6000 | 42.85% | 1847.7 |
-| **Version 3 (Proposed)** | **90.53%** | **71.37%** | **83.71%** | **63.96%** | **0.6358** | **46.61%** | 1939.8 |
+| **Version 1 (Baseline)** | 90.74% | 70.14% | 83.81% | 81.10% | 0.6184 | 44.76% | 1897.7 |
+| **Version 2 (Baseline + NDVI/NDWI)** | 91.19% | 72.43% | 84.56% | 82.91% | 0.6326 | 46.26% | 1907.0 |
+| **Version 3 (Proposed - Mult 0.5)** | 91.55% | 73.53% | 85.14% | 83.73% | 0.6404 | 47.10% | 1907.2 |
+| **Version 4 (Proposed - Mult 1.0)** | 91.52% | 74.15% | 85.17% | 84.18% | 0.6493 | 48.07% | 1916.4 |
+| **Version 5 (Proposed - Mult 2.0)** | **91.69%** | **74.98%** | **85.40%** | **84.86%** | **0.6571** | **48.93%** | 1911.3 |
 
 > **Note:** Mean IoU is computed over the 7 active classes only (Snow/Ice and Clouds excluded — both absent in Sylhet).
 
-*Key Insight:* Moving from V1 to V3 yields a net improvement of **+2.84% Mean IoU**, **+3.83% BF Score**, and **+4.00% Boundary IoU**, demonstrating the compounding benefits of multi-spectral index fusion and morphological edge-weighted loss.
+*Key Insight:* Moving from V1 to V5 yields a net improvement of **+4.84% Mean IoU**, **+3.87% BF Score (Edge F1)**, and **+4.17% Boundary IoU**, demonstrating the compounding benefits of multi-spectral index fusion and morphological edge-weighted loss.
 
 #### Per-Class IoU Comparison
 
-| Class | Version 1 (Baseline) | Version 2 (Baseline + NDVI/NDWI) | Version 3 (Proposed) | Net Progress (V1 → V3) |
-|:---|:---:|:---:|:---:|:---:|
-| **Water** | 93.34% | 93.87% | **94.25%** | +0.91% |
-| **Trees** | 67.36% | 68.51% | **70.02%** | +2.66% |
-| **Flooded Vegetation** | 44.18% | 48.57% | **52.10%** | **+7.92%** |
-| **Crops** | 87.84% | 87.82% | **87.96%** | +0.12% |
-| **Built Area** | 54.94% | 53.48% | **55.03%** | +0.09% |
-| **Bare Ground** | 79.04% | 83.13% | **84.78%** | **+5.75%** |
-| **Rangeland** | 47.33% | 50.41% | **55.46%** | **+8.13%** |
+| Class | Version 1 (Baseline) | Version 2 (Baseline + NDVI/NDWI) | Version 3 (Mult 0.5) | Version 4 (Mult 1.0) | Version 5 (Mult 2.0) | Net Progress (V1 → V5) |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Water** | 94.01% | 94.22% | 94.30% | 94.46% | **94.49%** | +0.48% |
+| **Trees** | 69.85% | 70.84% | 72.52% | 71.64% | **72.61%** | +2.76% |
+| **Flooded Vegetation** | 46.00% | 50.96% | 52.54% | 54.08% | **55.53%** | **+9.53%** |
+| **Crops** | 88.35% | 88.62% | 88.98% | 89.08% | **89.13%** | +0.78% |
+| **Built Area** | 55.73% | 59.41% | 61.05% | 61.09% | **61.60%** | **+5.87%** |
+| **Bare Ground** | 85.60% | 88.53% | 89.53% | **91.37%** | 90.32% | **+4.72%** |
+| **Rangeland** | 51.42% | 54.44% | 55.76% | 57.29% | **61.20%** | **+9.78%** |
 
 ### Manual Ablation (individual runs)
 
