@@ -630,7 +630,7 @@ if __name__ == "__main__":
         help="Optional path to ESRI LULC mask GeoTIFF (.tif/.tiff)",
     )
     parser.add_argument("--patch_size", type=int, default=256, help="Size of patches")
-    parser.add_argument("--patch_step", type=int, default=256, help="Step size for patching")
+    parser.add_argument("--patch_step", type=int, default=128, help="Step size for patching (default: 128 for 50% overlap)")
     parser.add_argument("--test_size", type=float, default=0.25, help="Validation/test split fraction")
     parser.add_argument(
         "--valid_pixel_threshold",
