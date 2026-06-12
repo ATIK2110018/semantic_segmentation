@@ -465,6 +465,14 @@ def boundary_evaluation(
 
 
 def main(args):
+    # Set random seed for complete reproducibility
+    tf.keras.utils.set_random_seed(args.seed)
+    try:
+        tf.config.experimental.enable_op_determinism()
+        print(f"Enabled TensorFlow op determinism with seed {args.seed}")
+    except Exception as e:
+        print(f"Could not enable op determinism: {e}. Seed {args.seed} is still set.")
+
     os.makedirs(args.output_dir, exist_ok=True)
 
     gpus = tf.config.list_physical_devices("GPU")
@@ -675,5 +683,11 @@ if __name__ == "__main__":
         "--no_save_model",
         action="store_true",
         help="Skip saving model.keras file (useful for ablation runs to save disk space)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)",
     )
     main(parser.parse_args())
