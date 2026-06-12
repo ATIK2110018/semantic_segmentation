@@ -209,7 +209,11 @@ def load_geotiff_data(
         mask = mask_src.read(1).astype(np.uint8)
 
     # Remap mask: collapse 9-class -> 7-class, set absent classes to 255
-    mask = np.where(mask < len(_ESRI_REMAP), _ESRI_REMAP[mask], 255).astype(np.uint8)
+    mask = np.where(
+        mask < len(_ESRI_REMAP),
+        _ESRI_REMAP[np.minimum(mask, len(_ESRI_REMAP) - 1)],
+        255,
+    ).astype(np.uint8)
 
     image = np.moveaxis(image, 0, -1)
     image = _normalize_sentinel_image(image)
