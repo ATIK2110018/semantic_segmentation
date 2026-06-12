@@ -42,9 +42,25 @@ ABLATION_CONFIGS = [
         ],
     },
     {
-        "name": "3_Proposed",
-        "label": "Version 3 (Proposed)",
-        "flags": [],  # all features ON: NDVI/NDWI + boundary loss
+        "name": "3_Proposed_0.5",
+        "label": "Version 3 (Proposed - Mult 0.5)",
+        "flags": [
+            "--boundary_multiplier", "0.5",
+        ],
+    },
+    {
+        "name": "4_Proposed_1.0",
+        "label": "Version 4 (Proposed - Mult 1.0)",
+        "flags": [
+            "--boundary_multiplier", "1.0",
+        ],
+    },
+    {
+        "name": "5_Proposed_2.0",
+        "label": "Version 5 (Proposed - Mult 2.0)",
+        "flags": [
+            "--boundary_multiplier", "2.0",
+        ],
     },
 ]
 
