@@ -8,7 +8,7 @@ A **Residual Attention U-Net** for semantic segmentation of satellite imagery us
 - **Boundary-Weighted Focal Loss** — morphological edge extraction scales loss at class boundaries
 - **Automated Patching** — handles large GeoTIFFs by patchifying into 256×256 segments
 - **Full Evaluation Pipeline** — per-class metrics, confusion matrices, color-coded boundary predictions
-- **Ablation Study Runner** — automated 5-configuration ablation with comparison table
+- **Ablation Study Runner** — automated 3-configuration ablation with comparison table
 - **Flexible LR Schedules** — Cosine Annealing or validation-plateau decay
 
 ## Project Structure
@@ -56,7 +56,7 @@ python main.py \
 
 ### Ablation Study
 
-Run all 5 configurations automatically:
+Run all 3 configurations automatically:
 
 ```bash
 python run_ablation.py --data_path dataset --epochs 200 --batch_size 16
@@ -64,34 +64,62 @@ python run_ablation.py --data_path dataset --epochs 200 --batch_size 16
 
 This runs the following configurations sequentially and produces a comparison table:
 
-| Run | Model | Attention | Residual | Boundary Loss | NDVI/NDWI |
+| Run | Configuration | Attention/Residual | Boundary Loss | NDVI/NDWI | LR Schedule |
 |:---:|---|:---:|:---:|:---:|:---:|
-| 1 | Plain U-Net | ❌ | ❌ | ❌ | ❌ |
-| 2 | Attention U-Net | ✅ | ❌ | ❌ | ❌ |
-| 3 | Attention + Residual U-Net | ✅ | ✅ | ❌ | ❌ |
-| 4 | Full Model (w/o NDVI/NDWI) | ✅ | ✅ | ✅ | ❌ |
-| 5 | **Full Model (Proposed)** | ✅ | ✅ | ✅ | ✅ |
+| 1 | **Version 1 (Baseline)** | ✅ | ❌ | ❌ | Cosine |
+| 2 | **Version 2 (Baseline + NDVI/NDWI)** | ✅ | ❌ | ✅ | Cosine |
+| 3 | **Version 3 (Proposed)** | ✅ | ✅ | ✅ | Cosine |
 
 Output structure:
 ```
 ablation_results/
-├── 1_Plain_UNet/
-├── 2_Attention_UNet/
-├── 3_Attention_Residual_UNet/
-├── 4_Full_Without_Indices/
-├── 5_Full_Model/
+├── 1_Baseline/
+├── 2_Baseline_NDVI/
+├── 3_Proposed/
 └── ablation_comparison.csv     # Side-by-side metric comparison
 ```
+
+### Empirical Results
+
+The final results of the ablation study (trained on Kaggle GPU T4 for 200 epochs) are shown below:
+
+#### Global Performance Comparison
+
+| Configuration | Overall Accuracy | Mean IoU | Weighted IoU | Mean F1 | BF Score (Edge F1) | Boundary IoU | Duration (s) |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Version 1 (Baseline)** | 90.13% | 52.67% | 82.98% | 61.70% | 0.5975 | 42.60% | 1903.4 |
+| **Version 2 (Baseline + NDVI/NDWI)** | 90.29% | 53.98% | 83.15% | 62.73% | 0.6000 | 42.85% | 1847.7 |
+| **Version 3 (Proposed)** | **90.53%** | **55.51%** | **83.71%** | **63.96%** | **0.6358** | **46.61%** | 1939.8 |
+
+*Key Insight:* Moving from V1 to V3 yields a net improvement of **+2.84% Mean IoU**, **+3.83% BF Score**, and **+4.00% Boundary IoU**, demonstrating the compounding benefits of multi-spectral index fusion and morphological edge-weighted loss.
+
+#### Per-Class IoU Comparison
+
+| Class | Version 1 (Baseline) | Version 2 (Baseline + NDVI/NDWI) | Version 3 (Proposed) | Net Progress (V1 → V3) |
+|:---|:---:|:---:|:---:|:---:|
+| **Water** | 93.34% | 93.87% | **94.25%** | +0.91% |
+| **Trees** | 67.36% | 68.51% | **70.02%** | +2.66% |
+| **Flooded Vegetation** | 44.18% | 48.57% | **52.10%** | **+7.92%** |
+| **Crops** | 87.84% | 87.82% | **87.96%** | +0.12% |
+| **Built Area** | 54.94% | 53.48% | **55.03%** | +0.09% |
+| **Bare Ground** | 79.04% | 83.13% | **84.78%** | **+5.75%** |
+| **Snow/Ice** | 0.00% | 0.00% | 0.00% | 0.00% |
+| **Clouds** | 0.00% | 0.00% | 0.00% | 0.00% |
+| **Rangeland** | 47.33% | 50.41% | **55.46%** | **+8.13%** |
+
+*Note:* `Snow/Ice` and `Clouds` have 0.0% IoU because there are no matching ground-truth pixels for these classes in the training/validation dataset split.
 
 ### Manual Ablation (individual runs)
 
 ```bash
-# Plain U-Net
-python main.py --disable_attention --disable_residual --boundary_multiplier 0.0 --no_ndvi \
-  --output_dir results/plain_unet
+# Version 1 (Baseline)
+python main.py --boundary_multiplier 0.0 --no_ndvi --output_dir results/baseline
 
-# Full model
-python main.py --output_dir results/full_model
+# Version 2 (Baseline + NDVI/NDWI)
+python main.py --boundary_multiplier 0.0 --output_dir results/baseline_ndvi
+
+# Version 3 (Proposed)
+python main.py --output_dir results/proposed
 ```
 
 ### Evaluation Outputs
