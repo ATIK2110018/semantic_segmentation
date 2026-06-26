@@ -58,8 +58,9 @@ def full_evaluation(
     for i in range(0, len(x_test), batch_size):
         print(f"  Batch {i // batch_size + 1}/{total_batches}", end="\r")
         x_b = x_test[i : i + batch_size]
-        y_b = y_test[i : i + batch_size]
+        y_b = y_test["seg_output"][i : i + batch_size] if isinstance(y_test, dict) else y_test[i : i + batch_size]
         y_pred = model.predict(x_b, verbose=0)
+        if isinstance(y_pred, list): y_pred = y_pred[0]
         cm += confusion_matrix(
             np.argmax(y_b, axis=-1).flatten(),
             np.argmax(y_pred, axis=-1).flatten(),
@@ -266,10 +267,11 @@ def full_evaluation(
         
     for i, idx in enumerate(indices):
         test_img = x_test[idx]
-        true_mask = np.argmax(y_test[idx], axis=-1)
-        pred_mask = np.argmax(
-            model.predict(np.expand_dims(test_img, 0), verbose=0)[0], axis=-1
-        )
+        true_mask = np.argmax(y_test["seg_output"][idx] if isinstance(y_test, dict) else y_test[idx], axis=-1)
+        
+        y_pred_raw = model.predict(np.expand_dims(test_img, 0), verbose=0)
+        y_pred_seg = y_pred_raw[0] if isinstance(y_pred_raw, list) else y_pred_raw
+        pred_mask = np.argmax(y_pred_seg[0], axis=-1)
         
         axes[i, 0].imshow(display_image(test_img))
         axes[i, 0].set_title(f"Input Image (#{idx})", fontsize=12, fontweight="bold")
@@ -364,11 +366,16 @@ def boundary_evaluation(
     total_batches = (len(x_test) + batch_size - 1) // batch_size
     for i in range(0, len(x_test), batch_size):
         print(f"  Predicting batch {i // batch_size + 1}/{total_batches}", end="\r")
-        y_pred_all.append(model.predict(x_test[i : i + batch_size], verbose=0))
+        y_pred_batch = model.predict(x_test[i : i + batch_size], verbose=0)
+        if isinstance(y_pred_batch, list): y_pred_batch = y_pred_batch[0]
+        y_pred_all.append(y_pred_batch)
     print(f"  Predictions complete — {len(x_test)} samples.")
 
     y_pred_prob  = np.concatenate(y_pred_all, axis=0)          # (N, H, W, C)
-    y_true_lbl   = np.argmax(y_test, axis=-1).astype(np.int32) # (N, H, W)
+    if isinstance(y_test, dict):
+        y_true_lbl = np.argmax(y_test["seg_output"], axis=-1).astype(np.int32)
+    else:
+        y_true_lbl = np.argmax(y_test, axis=-1).astype(np.int32) # (N, H, W)
     y_pred_lbl   = np.argmax(y_pred_prob, axis=-1).astype(np.int32)
 
     # -----------------------------------------------------------------------
@@ -487,6 +494,7 @@ def main(args):
         mask_tif=args.mask_tif,
         return_metadata=True,
         compute_indices=not args.no_ndvi,
+        use_dual_head=args.dual_head,
     )
     class_names = metadata["class_names"][:n_classes]
     class_colors = metadata["class_colors"][:n_classes]
@@ -501,7 +509,11 @@ def main(args):
     use_residual = not args.disable_residual
     img_height, img_width, img_channels = x_train.shape[1:]
 
-    y_train_labels = np.argmax(y_train, axis=-1)
+    if args.dual_head:
+        y_train_labels = np.argmax(y_train["seg_output"], axis=-1)
+    else:
+        y_train_labels = np.argmax(y_train, axis=-1)
+
     class_weights = calculate_class_weights(
         y_train_labels,
         num_classes=n_classes,
@@ -516,6 +528,7 @@ def main(args):
         img_channels,
         use_attention=use_attention,
         use_residual=use_residual,
+        use_dual_head=args.dual_head,
     )
     print(f"Building model: {model.name}...")
 
@@ -561,11 +574,19 @@ def main(args):
             ),
         ]
 
-    model.compile(
-        optimizer=Adam(learning_rate=lr_or_schedule),
-        loss=loss_fn,
-        metrics=["accuracy"],
-    )
+    if args.dual_head:
+        model.compile(
+            optimizer=Adam(learning_rate=lr_or_schedule),
+            loss={"seg_output": loss_fn, "bound_output": "binary_crossentropy"},
+            loss_weights={"seg_output": 1.0, "bound_output": 1.0},
+            metrics={"seg_output": "accuracy", "bound_output": "accuracy"},
+        )
+    else:
+        model.compile(
+            optimizer=Adam(learning_rate=lr_or_schedule),
+            loss=loss_fn,
+            metrics=["accuracy"],
+        )
 
     print("Starting training...")
 
@@ -650,6 +671,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples", type=int, default=5, help="Number of prediction samples to visualize")
     parser.add_argument("--disable_attention", action="store_true", help="Disable attention gates")
     parser.add_argument("--disable_residual", action="store_true", help="Disable residual connections")
+    parser.add_argument("--dual_head", action="store_true", help="Enable dual-head architecture for boundary prediction")
     parser.add_argument(
         "--boundary_kernel_size",
         type=int,

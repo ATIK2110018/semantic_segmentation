@@ -1,0 +1,60 @@
+lambda=2 te thamla keno,, eta to aro penalty diye barano jeto? defend korba kmne.. 2. tumi sylhet e calibrate korso ba odel banaiso,, ekhon chittagong (hilly area te ba rajshahi elakay) validation kora lagbe... 3.ESRI LULC map কে label হিসেবে niso, eta ki onno rao korse? koto tuku valid... 4. sentinel image theke classify korso(next idea hote pare landsat image theke korle kmn hoy)...
+
+Solórzano, J. V., Mas, J. F., Gao, Y., & Gallardo-Cruz, J. A. (2021). Land Use Land Cover Classification with U-Net: Advantages of Combining Sentinel-1 and Sentinel-2 Imagery. Remote Sensing, 13(18), 3600. DOI: 10.3390/rs13183600.  --- this paper used Sentinel-1 SAR and Sentinel-2 multispectral data. The paper reports that combined SAR + multispectral U-Net gave better F1-score and accuracy for detailed LULC mapping than other tested options.--------------- You might consider checking Sentinel 1 Sar as sylhet region has wetlands, flooded vegetation, cloudy conditions, and crop-water confusion. SAR can help because it responds to surface roughness and moisture, not just optical reflectance.
+
+Add Sentinel-1 VV and VH bands with Sentinel-2 bands, then compare:
+
+Sentinel-2 only
+Sentinel-2 + NDVI/NDWI
+Sentinel-1 only
+Sentinel-1 + Sentinel-2
+Sentinel-1 + Sentinel-2 + NDVI/NDWI
+Tzepkenlis, A., Marthoglou, K., & Grammalidis, N. (2023). Efficient Deep Semantic Segmentation for Land Cover Classification Using Sentinel Imagery. Remote Sensing, 15(8), 2027. DOI: 10.3390/rs15082027.-------  This paper is very close to your  work because it uses Sentinel imagery, Google Earth Engine, semantic segmentation, spectral indices, Sentinel-1, Sentinel-2, and attention-based modeling. The paper modifies U-TAE to work with a single multiband composite and compares it with Random Forest, U-Net, and SegFormer. It reports that the modified U-TAE achieved mIoU 57.25%, outperforming Random Forest, U-Net, and SegFormer in their setup.------- You only compared versions of your own residual U-Net model. A reviewer may ask: “How do we know this model is better than standard U-Net, DeepLabV3+, SegFormer, U-TAE, or Random Forest?
+
+Run at least these baselines:
+
+Random Forest using spectral bands + NDVI/NDWI
+Standard U-Net
+Attention U-Net
+DeepLabV3+
+SegFormer or U-TAE if possible
+Proposed Boundary-Aware Residual Attention U-Net
+
+Without these comparisons, the contribution will look weak.
+Wenger, R., Puissant, A., Weber, J., Idoumghar, L., & Forestier, G. (2023). Multimodal and Multitemporal Land Use/Land Cover Semantic Segmentation on Sentinel-1 and Sentinel-2 Imagery: An Application on a MultiSenGE Dataset. Remote Sensing, 15(1), 151. DOI: 10.3390/rs15010151.----- This paper is important because it focuses on multimodal and multitemporal LULC semantic segmentation using Sentinel-1 and Sentinel-2. It is open access and provides a clear citation record.---- You have used a  single annual median composite for 2023. That is useful, but it hides seasonal differences. In Sylhet, wetlands, crops, flooded vegetation, and rangeland can change strongly between dry season, monsoon, and post-monsoon.------ Create seasonal composites:
+
+Dry season composite
+Pre-monsoon composite
+Monsoon composite
+Post-monsoon composite
+Annual median composite
+
+Then test whether multi-season input improves flooded vegetation, crops, and rangeland. This would be much stronger than only one annual image.
+
+What to tell the student to try:
+Zhang, G., Roslan, S., Wang, C., & Quan, L. (2023). Research on land cover classification of multi-source remote sensing data based on improved U-net network. Scientific Reports, 13, 16275. DOI: 10.1038/s41598-023-43317-1.    ------- Paul, O., Nayem, A. B. S., Sarker, A., et al. (2025). BOLM high resolution land use and land cover dataset and benchmark results for the rapidly developing City of Dhaka Bangladesh. Scientific Reports, 15, 37689. DOI: 10.1038/s41598-025-21458-9-------
+Review: Boundary-aware LULC segmentation is still weak for wetland and transition zones
+
+Your report already shows boundary improvement, but boundary recall remains weak. That means the model does not draw too many false boundaries, but it misses real class transitions. This is a good research gap.
+
+Possible new idea:
+Develop a dual-head boundary-aware LULC network for Sylhet:
+
+One head predicts LULC classes.
+One head predicts boundaries.
+Use multi-scale boundary supervision.
+Evaluate Boundary IoU, BF-score, and boundary recall at different buffer widths.
+This directly extends the current report and connects well with BAS4Net.
+Review: Boundary-aware LULC segmentation is still weak for wetland and transition zones
+
+Your report already shows boundary improvement, but boundary recall remains weak. That means the model does not draw too many false boundaries, but it misses real class transitions. This is a good research gap.
+
+Possible new idea:
+Develop a dual-head boundary-aware LULC network for Sylhet:
+
+One head predicts LULC classes.
+One head predicts boundaries.
+Use multi-scale boundary supervision.
+Evaluate Boundary IoU, BF-score, and boundary recall at different buffer widths.
+This directly extends the current report and connects well with BAS4Net.
+Please go through the papers I added here try to rethink. Your existing work is good for a conference, but for a journal, it needs to be reshaped.

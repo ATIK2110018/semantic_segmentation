@@ -60,8 +60,8 @@ def decoder_block(input_tensor, skip_feature, num_filters, use_attention=True, u
     return x
 
 
-def build_residual_attention_unet(n_classes, img_height, img_width, img_channels, dropout_rate=0.3, use_attention=True, use_residual=True):
-    """Build U-Net with optional attention and residual components."""
+def build_residual_attention_unet(n_classes, img_height, img_width, img_channels, dropout_rate=0.3, use_attention=True, use_residual=True, use_dual_head=False):
+    """Build U-Net with optional attention, residual components, and dual-head boundary prediction."""
     inputs = Input((img_height, img_width, img_channels))
 
     s1, p1 = encoder_block(inputs, 64, use_residual=use_residual)
@@ -85,9 +85,19 @@ def build_residual_attention_unet(n_classes, img_height, img_width, img_channels
     d4 = decoder_block(d3, s1, 64, use_attention=use_attention, use_residual=use_residual)
     d4 = Dropout(dropout_rate)(d4)
 
-    outputs = Conv2D(n_classes, 1, padding="same", activation="softmax")(d4)
+    # Main Segmentation Head
+    seg_output = Conv2D(n_classes, 1, padding="same", activation="softmax", name="seg_output")(d4)
+
+    if use_dual_head:
+        # Secondary Boundary Head
+        b_head = Conv2D(64, 3, padding="same", activation="relu")(d4)
+        bound_output = Conv2D(1, 1, padding="same", activation="sigmoid", name="bound_output")(b_head)
+        outputs = [seg_output, bound_output]
+    else:
+        outputs = seg_output
 
     name_parts = []
+    if use_dual_head: name_parts.append("DualHead")
     if use_residual: name_parts.append("Residual")
     if use_attention: name_parts.append("Attention")
     name_parts.append("U-Net")

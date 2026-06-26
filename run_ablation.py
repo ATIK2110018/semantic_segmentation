@@ -62,6 +62,14 @@ ABLATION_CONFIGS = [
             "--boundary_multiplier", "2.0",
         ],
     },
+    {
+        "name": "6_Proposed_DualHead",
+        "label": "Version 6 (Dual Head Network)",
+        "flags": [
+            "--boundary_multiplier", "0.0", # Let the second head handle boundaries entirely
+            "--dual_head",
+        ],
+    },
 ]
 
 

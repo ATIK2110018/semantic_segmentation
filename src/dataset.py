@@ -280,6 +280,7 @@ def prepare_dataset(
     mask_tif=None,
     return_metadata=False,
     compute_indices=True,
+    use_dual_head=False,
 ):
     """Load, one-hot encode, and split the dataset into train/test sets."""
     from tensorflow.keras.utils import to_categorical
@@ -299,6 +300,14 @@ def prepare_dataset(
 
     n_classes = len(metadata["class_names"])
 
+    if use_dual_head:
+        from src.boundary_metrics import _extract_boundary_map
+        print("Generating boundary ground truths for dual-head training...")
+        y_bound = np.zeros_like(y, dtype=np.float32)
+        for i in range(len(y)):
+            y_bound[i] = _extract_boundary_map(y[i], kernel_size=3).astype(np.float32)
+        y_bound = np.expand_dims(y_bound, axis=-1)
+
     # Clamp ignore pixels (255) to 0 before one-hot encoding;
     # the loss function will zero them out via ignore_label masking.
     ignore = metadata.get("ignore_label")
@@ -307,9 +316,16 @@ def prepare_dataset(
 
     y_cat = to_categorical(y, num_classes=n_classes)
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y_cat, test_size=test_size, random_state=random_state
-    )
+    if use_dual_head:
+        x_train, x_test, y_train_cat, y_test_cat, y_train_bnd, y_test_bnd = train_test_split(
+            x, y_cat, y_bound, test_size=test_size, random_state=random_state
+        )
+        y_train = {"seg_output": y_train_cat, "bound_output": y_train_bnd}
+        y_test = {"seg_output": y_test_cat, "bound_output": y_test_bnd}
+    else:
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y_cat, test_size=test_size, random_state=random_state
+        )
 
     if metadata["source"] == "aerial":
         x_train = x_train.astype("float32") / 255.0
