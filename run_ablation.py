@@ -27,29 +27,29 @@ from pathlib import Path
 # ── Ablation configurations ─────────────────────────────────────────────────
 ABLATION_CONFIGS = [
     {
-        "name": "3_Proposed_0.5",
-        "label": "Version 3 (Proposed - Mult 0.5)",
+        "name": "1_Proposed_0.5",
+        "label": "Version 1 (Proposed - Mult 0.5)",
         "flags": [
             "--boundary_multiplier", "0.5",
         ],
     },
     {
-        "name": "4_Proposed_1.0",
-        "label": "Version 4 (Proposed - Mult 1.0)",
+        "name": "2_Proposed_1.0",
+        "label": "Version 2 (Proposed - Mult 1.0)",
         "flags": [
             "--boundary_multiplier", "1.0",
         ],
     },
     {
-        "name": "5_Proposed_2.0",
-        "label": "Version 5 (Proposed - Mult 2.0)",
+        "name": "3_Proposed_2.0",
+        "label": "Version 3 (Proposed - Mult 2.0)",
         "flags": [
             "--boundary_multiplier", "2.0",
         ],
     },
     {
-        "name": "6_Proposed_DualHead",
-        "label": "Version 6 (Dual Head Network)",
+        "name": "4_Proposed_DualHead",
+        "label": "Version 4 (Dual Head Network)",
         "flags": [
             "--boundary_multiplier", "0.0", # Let the second head handle boundaries entirely
             "--dual_head",
