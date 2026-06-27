@@ -163,7 +163,7 @@ def run_ablation(common_args, base_output_dir="ablation_results"):
             sys.executable, "main.py",
             *common_args,
             "--output_dir", run_output,
-            "--no_save_model",
+            "--model_save_path", os.path.join(run_output, "model.keras"),
             *config["flags"],
         ]
 
