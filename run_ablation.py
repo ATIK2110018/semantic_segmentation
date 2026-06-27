@@ -27,21 +27,6 @@ from pathlib import Path
 # ── Ablation configurations ─────────────────────────────────────────────────
 ABLATION_CONFIGS = [
     {
-        "name": "1_Baseline",
-        "label": "Version 1 (Baseline)",
-        "flags": [
-            "--boundary_multiplier", "0.0",
-            "--no_ndvi",
-        ],
-    },
-    {
-        "name": "2_Baseline_NDVI",
-        "label": "Version 2 (Baseline + NDVI/NDWI)",
-        "flags": [
-            "--boundary_multiplier", "0.0",
-        ],
-    },
-    {
         "name": "3_Proposed_0.5",
         "label": "Version 3 (Proposed - Mult 0.5)",
         "flags": [
