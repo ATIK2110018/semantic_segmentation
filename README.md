@@ -5,6 +5,7 @@ A **Residual Attention U-Net** for semantic segmentation of Sentinel-2 satellite
 ## Features
 - **Residual Attention U-Net** — residual connections for gradient flow + attention gates on skip connections
 - **6-Channel Feature Fusion** — on-the-fly NDVI and NDWI appended to B2/B3/B4/B8 bands
+- **Dual-Head Architecture** — explicit secondary decoder head for multi-task boundary prediction
 - **Boundary-Weighted Focal Loss** — morphological edge extraction scales loss at class boundaries
 - **Automated Patching** — handles large GeoTIFFs by patchifying into 256×256 segments
 - **Full Evaluation Pipeline** — per-class metrics, confusion matrices, color-coded boundary predictions
@@ -56,7 +57,7 @@ python main.py \
 
 ### Ablation Study
 
-Run all 3 configurations automatically:
+Run all 6 configurations automatically:
 
 ```bash
 python run_ablation.py --data_path dataset --epochs 200 --batch_size 16
@@ -64,11 +65,14 @@ python run_ablation.py --data_path dataset --epochs 200 --batch_size 16
 
 This runs the following configurations sequentially and produces a comparison table:
 
-| Run | Configuration | Attention/Residual | Boundary Loss | NDVI/NDWI | LR Schedule |
+| Run | Configuration | Attention/Residual | Boundary Loss | NDVI/NDWI | Dual Head |
 |:---:|---|:---:|:---:|:---:|:---:|
-| 1 | **Version 1 (Baseline)** | ✅ | ❌ | ❌ | Cosine |
-| 2 | **Version 2 (Baseline + NDVI/NDWI)** | ✅ | ❌ | ✅ | Cosine |
-| 3 | **Version 3 (Proposed)** | ✅ | ✅ | ✅ | Cosine |
+| 1 | **Version 1 (Baseline)** | ✅ | ❌ | ❌ | ❌ |
+| 2 | **Version 2 (Baseline + NDVI/NDWI)** | ✅ | ❌ | ✅ | ❌ |
+| 3 | **Version 3 (Proposed - Soft)** | ✅ | ✅ (0.5) | ✅ | ❌ |
+| 4 | **Version 4 (Proposed - Med)** | ✅ | ✅ (1.0) | ✅ | ❌ |
+| 5 | **Version 5 (Proposed - Strong)** | ✅ | ✅ (2.0) | ✅ | ❌ |
+| 6 | **Version 6 (Dual Head Network)** | ✅ | ❌ | ✅ | ✅ |
 
 Output structure:
 ```
@@ -169,6 +173,7 @@ The boundary prediction figure uses a 4-column layout with color-coded correctne
 | `--num_samples` | `5` | Prediction samples to visualize |
 | `--disable_attention` | `false` | Disable attention gates |
 | `--disable_residual` | `false` | Disable residual connections |
+| `--dual_head` | `false` | Enable dual-head architecture for explicit boundary prediction |
 | `--boundary_kernel_size` | `3` | Morphological gradient kernel size |
 | `--boundary_multiplier` | `2.0` | Boundary pixel loss weight (0.0 to disable) |
 | `--lr_schedule` | `cosine` | LR schedule: `cosine` or `plateau` |
